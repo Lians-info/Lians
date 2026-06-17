@@ -143,6 +143,8 @@ async def add_memory(
                     "superseded_by": str(mem.id),
                     "confidence": supersession.confidence,
                     "relation": supersession.relation,
+                    "rationale": supersession.rationale,
+                    "adjudication_stage": 3 if supersession.rationale else 2,
                 },
             ))
 

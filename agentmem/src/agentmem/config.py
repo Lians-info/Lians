@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     # API
     api_secret_seed: str = "dev-seed-change-in-prod"
 
-    # LLM adjudication
-    llm_adjudication_model: str = "gpt-4o-mini"
+    # LLM adjudication (Stage 3 supersession)
+    anthropic_api_key: str = ""          # falls back to ANTHROPIC_API_KEY env var
+    llm_adjudication_model: str = "claude-haiku-4-5-20251001"
     supersession_llm_stage: bool = False
 
 

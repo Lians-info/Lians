@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import Memory
 from .schemas import SupersessionResult
 from .crypto import decrypt_content
+from .config import get_settings
+from .llm_adjudication import llm_adjudicate
 
 
 # Threshold: cosine similarity above this is considered "same topic"
@@ -171,16 +173,23 @@ async def run_supersession(
     if not candidates:
         return SupersessionResult(relation="ADDS", confidence=1.0)
 
+    settings = get_settings()
     superseded_ids: list[UUID] = []
     best_relation = "ADDS"
     best_confidence = 1.0
+    best_rationale: Optional[str] = None
 
     for candidate in candidates:
-        # Decrypt old content for comparison if we have the key
+        # Decrypt old content for Stage 2 value comparison and Stage 3 text input
         old_content: Optional[str] = None
         if subject_key and candidate.content_encrypted:
             try:
                 old_content = decrypt_content(bytes(candidate.content_encrypted), subject_key)
+            except Exception:
+                old_content = None
+        elif candidate.content_encrypted and not candidate.subject_id:
+            try:
+                old_content = bytes(candidate.content_encrypted).decode()
             except Exception:
                 old_content = None
 
@@ -193,16 +202,39 @@ async def run_supersession(
             new_meta=new_meta,
         )
 
+        # Stage 3: LLM adjudication when Stage 2 says SUPERSEDES.
+        # Catches paraphrases ("guidance raised to $36B" vs "outlook now 36 billion")
+        # that Stage 2's string-equality check misses.  Only runs when enabled and
+        # when we have plaintext content to send.
+        rationale: Optional[str] = None
+        if (
+            relation == "SUPERSEDES"
+            and settings.supersession_llm_stage
+            and old_content is not None
+        ):
+            relation, confidence, rationale = await llm_adjudicate(
+                old_content=old_content,
+                new_content=new_content,
+                meta=new_meta,
+            )
+
         if relation == "SUPERSEDES":
             superseded_ids.append(candidate.id)
             best_relation = "SUPERSEDES"
             best_confidence = confidence
+            best_rationale = rationale
         elif relation == "CONTRADICTS_SAME_TIME" and best_relation != "SUPERSEDES":
             best_relation = "CONTRADICTS_SAME_TIME"
             best_confidence = confidence
+        elif relation == "CONFIRMS" and best_relation not in ("SUPERSEDES", "CONTRADICTS_SAME_TIME"):
+            # Stage 3 downgraded a SUPERSEDES to CONFIRMS (paraphrase detected)
+            best_relation = "CONFIRMS"
+            best_confidence = confidence
+            best_rationale = rationale
 
     return SupersessionResult(
         relation=best_relation,
         confidence=best_confidence,
         superseded_ids=superseded_ids,
+        rationale=best_rationale,
     )

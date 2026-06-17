@@ -1,0 +1,306 @@
+"""
+Stage 3 LLM adjudication tests.
+
+All LLM calls are mocked — these tests verify caching behaviour, error
+handling, correct integration with run_supersession, and the contract
+that Stage 3 can override a Stage 2 SUPERSEDES verdict.
+"""
+import json
+import pytest
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from src.agentmem.llm_adjudication import llm_adjudicate, _CACHE, _pair_key
+
+
+T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T1 = datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _mock_response(relation: str, confidence: float, rationale: str):
+    """Build a minimal mock Anthropic message object."""
+    content_block = MagicMock()
+    content_block.text = json.dumps(
+        {"relation": relation, "confidence": confidence, "rationale": rationale}
+    )
+    msg = MagicMock()
+    msg.content = [content_block]
+    return msg
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Each test runs against an empty adjudication cache."""
+    _CACHE.clear()
+    yield
+    _CACHE.clear()
+
+
+# ---------------------------------------------------------------------------
+# llm_adjudicate unit tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_paraphrase_returns_confirms():
+    """LLM that returns CONFIRMS overrides the assumed SUPERSEDES verdict."""
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(
+            return_value=_mock_response("CONFIRMS", 0.93, "Same $36B value, different wording")
+        )
+
+        relation, confidence, rationale = await llm_adjudicate(
+            old_content="NVDA Q3 guidance $36B",
+            new_content="Nvidia raised its Q3 outlook to thirty-six billion dollars",
+            meta={"ticker": "NVDA", "metric": "guidance"},
+        )
+
+    assert relation == "CONFIRMS"
+    assert confidence >= 0.9
+    assert rationale != ""
+
+
+@pytest.mark.asyncio
+async def test_genuine_supersedes_confirmed_by_llm():
+    """LLM confirms that a real value change is SUPERSEDES."""
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(
+            return_value=_mock_response("SUPERSEDES", 0.95, "Value changed from $32B to $36B")
+        )
+
+        relation, confidence, rationale = await llm_adjudicate(
+            old_content="NVDA Q3 guidance $32B",
+            new_content="NVDA Q3 guidance raised to $36B",
+            meta={"ticker": "NVDA", "metric": "guidance"},
+        )
+
+    assert relation == "SUPERSEDES"
+    assert confidence >= 0.9
+
+
+@pytest.mark.asyncio
+async def test_cache_hit_calls_llm_only_once():
+    """Identical pair → second call returns cached result, LLM not called again."""
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(
+            return_value=_mock_response("SUPERSEDES", 0.9, "Different value")
+        )
+
+        r1 = await llm_adjudicate("old guidance $32B", "new guidance $36B", {})
+        r2 = await llm_adjudicate("old guidance $32B", "new guidance $36B", {})
+
+    assert r1 == r2
+    assert inst.messages.create.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_different_pairs_each_call_llm():
+    """Different content pairs are each adjudicated independently."""
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(
+            return_value=_mock_response("SUPERSEDES", 0.9, "ok")
+        )
+
+        await llm_adjudicate("old A", "new A", {})
+        await llm_adjudicate("old B", "new B", {})
+
+    assert inst.messages.create.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_llm_api_error_falls_back_gracefully():
+    """Network/API error returns a safe fallback — the write path must not break."""
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(side_effect=RuntimeError("connection refused"))
+
+        relation, confidence, rationale = await llm_adjudicate("old", "new", {})
+
+    assert relation == "SUPERSEDES"
+    assert confidence < 0.85          # lower than normal Stage 2 confidence
+    assert "llm_error" in rationale
+
+
+@pytest.mark.asyncio
+async def test_llm_invalid_json_falls_back():
+    """Malformed JSON from the LLM falls back without raising."""
+    bad = MagicMock()
+    bad.text = "sorry I cannot help with that"
+    msg = MagicMock()
+    msg.content = [bad]
+
+    with patch("anthropic.AsyncAnthropic") as MockCls:
+        inst = AsyncMock()
+        MockCls.return_value = inst
+        inst.messages.create = AsyncMock(return_value=msg)
+
+        relation, confidence, rationale = await llm_adjudicate("old", "new", {})
+
+    assert relation == "SUPERSEDES"
+    assert "llm_error" in rationale
+
+
+# ---------------------------------------------------------------------------
+# Integration: Stage 3 inside run_supersession
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_stage3_disabled_by_default_llm_never_called(db):
+    """supersession_llm_stage defaults to False — llm_adjudicate is never invoked."""
+    from src.agentmem.supersession import run_supersession
+    from src.agentmem.embeddings import get_embedding_provider
+
+    provider = get_embedding_provider()
+    emb = await provider.embed_one("NVDA Q3 guidance raised to $36B")
+
+    with patch("src.agentmem.supersession.llm_adjudicate") as mock_llm:
+        await run_supersession(
+            db=db,
+            namespace="test-ns",
+            agent_id="agent-1",
+            new_content="NVDA Q3 guidance raised to $36B",
+            new_meta={"ticker": "NVDA", "metric": "guidance"},
+            new_embedding=emb,
+            new_event_time=T1,
+        )
+
+    mock_llm.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stage3_confirms_prevents_supersession(db, monkeypatch):
+    """Stage 3 returning CONFIRMS means the old memory is NOT superseded."""
+    from src.agentmem.supersession import run_supersession
+    from src.agentmem.embeddings import get_embedding_provider
+    from src.agentmem.schemas import MemoryAdd
+    from src.agentmem.memory_service import add_memory
+    from src.agentmem.config import get_settings
+
+    # Seed an old memory with plain (non-PII) content so Stage 3 can read it
+    await add_memory(db, "test-ns", MemoryAdd(
+        agent_id="agent-1",
+        content="NVDA Q3 guidance $36B",
+        event_time=T0,
+        metadata={"ticker": "NVDA", "metric": "guidance"},
+    ))
+
+    monkeypatch.setenv("SUPERSESSION_LLM_STAGE", "true")
+    get_settings.cache_clear()
+
+    provider = get_embedding_provider()
+    emb = await provider.embed_one("Nvidia raised Q3 outlook to thirty-six billion")
+
+    with patch("src.agentmem.supersession.llm_adjudicate", new=AsyncMock(
+        return_value=("CONFIRMS", 0.93, "Paraphrase of the same $36B figure")
+    )) as mock_llm:
+        result = await run_supersession(
+            db=db,
+            namespace="test-ns",
+            agent_id="agent-1",
+            new_content="Nvidia raised Q3 outlook to thirty-six billion",
+            new_meta={"ticker": "NVDA", "metric": "guidance"},
+            new_embedding=emb,
+            new_event_time=T1,
+        )
+
+    get_settings.cache_clear()
+
+    mock_llm.assert_called_once()
+    assert result.relation == "CONFIRMS"
+    assert len(result.superseded_ids) == 0, "Paraphrase must not supersede the old memory"
+
+
+@pytest.mark.asyncio
+async def test_stage3_supersedes_carries_rationale(db, monkeypatch):
+    """When Stage 3 confirms SUPERSEDES, the rationale is stored on the result."""
+    from src.agentmem.supersession import run_supersession
+    from src.agentmem.embeddings import get_embedding_provider
+    from src.agentmem.schemas import MemoryAdd
+    from src.agentmem.memory_service import add_memory
+    from src.agentmem.config import get_settings
+
+    await add_memory(db, "test-ns", MemoryAdd(
+        agent_id="agent-1",
+        content="NVDA Q3 guidance $32B",
+        event_time=T0,
+        metadata={"ticker": "NVDA", "metric": "guidance"},
+    ))
+
+    monkeypatch.setenv("SUPERSESSION_LLM_STAGE", "true")
+    get_settings.cache_clear()
+
+    provider = get_embedding_provider()
+    emb = await provider.embed_one("NVDA Q3 guidance raised to $36B")
+
+    with patch("src.agentmem.supersession.llm_adjudicate", new=AsyncMock(
+        return_value=("SUPERSEDES", 0.97, "Value changed from $32B to $36B")
+    )):
+        result = await run_supersession(
+            db=db,
+            namespace="test-ns",
+            agent_id="agent-1",
+            new_content="NVDA Q3 guidance raised to $36B",
+            new_meta={"ticker": "NVDA", "metric": "guidance"},
+            new_embedding=emb,
+            new_event_time=T1,
+        )
+
+    get_settings.cache_clear()
+
+    assert result.relation == "SUPERSEDES"
+    assert len(result.superseded_ids) == 1
+    assert result.rationale == "Value changed from $32B to $36B"
+
+
+@pytest.mark.asyncio
+async def test_stage3_event_log_records_stage_number(db, monkeypatch):
+    """After a Stage 3 supersession, the event log payload shows adjudication_stage=3."""
+    from src.agentmem.schemas import MemoryAdd
+    from src.agentmem.memory_service import add_memory
+    from src.agentmem.models import EventLog
+    from src.agentmem.config import get_settings
+    from sqlalchemy import select
+
+    monkeypatch.setenv("SUPERSESSION_LLM_STAGE", "true")
+    get_settings.cache_clear()
+
+    await add_memory(db, "test-ns", MemoryAdd(
+        agent_id="agent-1",
+        content="NVDA Q3 guidance $32B",
+        event_time=T0,
+        metadata={"ticker": "NVDA", "metric": "guidance"},
+    ))
+
+    with patch("src.agentmem.supersession.llm_adjudicate", new=AsyncMock(
+        return_value=("SUPERSEDES", 0.97, "Value changed from $32B to $36B")
+    )):
+        await add_memory(db, "test-ns", MemoryAdd(
+            agent_id="agent-1",
+            content="NVDA Q3 guidance raised to $36B",
+            event_time=T1,
+            metadata={"ticker": "NVDA", "metric": "guidance"},
+        ))
+
+    get_settings.cache_clear()
+
+    result = await db.execute(
+        select(EventLog).where(EventLog.op == "supersede")
+    )
+    log_row = result.scalar_one()
+    payload = dict(log_row.payload)
+
+    assert payload["adjudication_stage"] == 3
+    assert payload["rationale"] == "Value changed from $32B to $36B"
+    assert payload["confidence"] >= 0.95
