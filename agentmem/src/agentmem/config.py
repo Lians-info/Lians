@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     llm_adjudication_model: str = "claude-haiku-4-5-20251001"
     supersession_llm_stage: bool = False
 
+    # Recall hot cache (Redis)
+    recall_cache_enabled: bool = True
+    recall_cache_ttl_seconds: int = 60
+    # Supersession review queue — supersessions below this confidence are flagged for review
+    supersession_review_threshold: float = 0.75
+
 
 @lru_cache
 def get_settings() -> Settings:

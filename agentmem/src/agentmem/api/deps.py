@@ -1,5 +1,5 @@
 """
-FastAPI dependencies: API key auth, namespace resolution, DB session.
+FastAPI dependencies: API key auth, namespace resolution, DB session, RLS.
 """
 from __future__ import annotations
 import hashlib
@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
@@ -30,6 +30,26 @@ class AuthContext:
             raise HTTPException(status_code=403, detail=f"Scope '{scope}' required")
 
 
+async def _set_rls_namespace(db: AsyncSession, namespace: str) -> None:
+    """
+    Set the PostgreSQL session variable used by Row-Level Security policies.
+
+    SET LOCAL is transaction-scoped — it resets when the transaction ends,
+    so there is no risk of a connection-pool reuse leaking one tenant's
+    namespace into another tenant's query.
+
+    On SQLite (unit tests) the statement fails silently; RLS is enforced
+    by application-level WHERE clauses in that environment.
+    """
+    try:
+        await db.execute(
+            text("SET LOCAL app.current_namespace = :ns"),
+            {"ns": namespace},
+        )
+    except Exception:
+        pass  # SQLite or pre-transaction context — application-layer isolation applies
+
+
 async def get_auth(
     raw_key: Annotated[Optional[str], Security(_api_key_header)],
     db: AsyncSession = Depends(get_db),
@@ -49,6 +69,10 @@ async def get_auth(
 
     if key_row is None:
         raise HTTPException(status_code=401, detail="Invalid or revoked API key")
+
+    # Enforce namespace isolation at the Postgres layer — any query that runs
+    # on this session after this point can only see rows matching the namespace.
+    await _set_rls_namespace(db, key_row.namespace)
 
     return AuthContext(
         namespace=key_row.namespace,

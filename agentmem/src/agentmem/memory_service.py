@@ -9,16 +9,23 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, update, text
+from sqlalchemy import select, and_, update, text, cast, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Memory, EventLog, SubjectKey
-from .schemas import MemoryAdd, MemoryOut, RecallRequest, RecallResult
+from .models import Memory, EventLog, SubjectKey, AgentBarrierGroup
+from .schemas import (
+    MemoryAdd, MemoryOut, RecallRequest, RecallResult,
+    MemoryBatchAdd, MemoryBatchResult,
+    SupersessionReviewItem, SupersessionReviewResult,
+    SupersessionAction, SupersessionActionResult,
+)
 from .embeddings import get_embedding_provider
 from .crypto import encrypt_content, decrypt_content, unwrap_subject_key
 from .pii import get_or_create_subject_key, destroy_subject_key
 from .supersession import run_supersession
 from .ranking import hybrid_recall
+from .cache import get_cached_recall, set_cached_recall, invalidate_agent
+from .config import get_settings
 
 _IMPORTANCE_RECENCY_HALF_LIFE_DAYS = 90.0
 
@@ -76,6 +83,16 @@ def _compute_importance(event_time: datetime, caller_salience: float) -> float:
     return round(0.4 * recency + 0.6 * caller_salience, 4)
 
 
+async def _get_barrier_group(db: AsyncSession, namespace: str, agent_id: str) -> Optional[str]:
+    """Return the barrier group for an agent, or None if unassigned (sees all)."""
+    stmt = select(AgentBarrierGroup).where(
+        and_(AgentBarrierGroup.namespace == namespace, AgentBarrierGroup.agent_id == agent_id)
+    )
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+    return row.group_name if row else None
+
+
 async def _load_namespace_subject_keys(db: AsyncSession, namespace: str) -> dict[str, bytes]:
     """Load all active subject keys for a namespace (for decrypting recalled memories)."""
     stmt = select(SubjectKey).where(
@@ -112,6 +129,7 @@ def _memory_to_out(mem: Memory, content: Optional[str]) -> MemoryOut:
         valid_to=mem.valid_to,
         superseded_by=mem.superseded_by,
         supersession_confidence=mem.supersession_confidence,
+        barrier_group=mem.barrier_group,
         importance=mem.importance,
         source=mem.source,
         content_hash=mem.content_hash,
@@ -144,9 +162,20 @@ async def add_memory(
     #   Layer 2 — pg_advisory_xact_lock: cross-process (multi-worker)
     # Both are acquired before reading supersession candidates; Layer 2 is
     # released automatically on db.commit() / rollback.
+    #
+    # barrier_group is looked up INSIDE the lock so that it reads within the
+    # same transaction as supersession candidates.  If it were fetched outside,
+    # on SQLite the autobegin transaction would snapshot the DB before any
+    # concurrent write commits, causing concurrent adds to miss each other's
+    # superseded memories (tested in test_concurrency.py).
     in_process_lock = await _get_in_process_lock(namespace, req.agent_id)
     async with in_process_lock:
         await _acquire_pg_advisory_lock(db, namespace, req.agent_id)
+
+        # Tag memory with agent's barrier group so that other barrier groups
+        # cannot recall it.  Looked up here so the read is within the locked
+        # transaction (consistent with supersession candidate reads below).
+        barrier_group = await _get_barrier_group(db, namespace, req.agent_id)
 
         supersession = await run_supersession(
             db=db,
@@ -174,6 +203,7 @@ async def add_memory(
             importance=_compute_importance(req.event_time, req.importance),
             source=req.source,
             content_hash=_content_hash(req.content),
+            barrier_group=barrier_group,
         )
         db.add(mem)
         await db.flush()  # get mem.id
@@ -218,6 +248,9 @@ async def add_memory(
     # ── End critical section ────────────────────────────────────────────────
 
     await db.refresh(mem)
+    # Invalidate all cached recall results for this agent so the next recall
+    # sees the new memory immediately rather than a stale hot-cache response.
+    await invalidate_agent(namespace, req.agent_id)
     return _memory_to_out(mem, req.content)
 
 
@@ -226,9 +259,23 @@ async def recall_memories(
     namespace: str,
     req: RecallRequest,
 ) -> RecallResult:
+    settings = get_settings()
+
+    # ── Hot cache (Redis) ───────────────────────────────────────────────────
+    # Cache read: check before any DB work. Skip for audit-time recall (as_of)
+    # since those are deterministic and can be cached; present-time recall
+    # changes after every write and is invalidated on add_memory.
+    if settings.recall_cache_enabled:
+        cached = await get_cached_recall(
+            namespace, req.agent_id, req.query, req.as_of, req.k, req.filters
+        )
+        if cached is not None:
+            return RecallResult.model_validate_json(cached)
+
     provider = get_embedding_provider()
     query_embedding = await provider.embed_one(req.query)
     subject_keys = await _load_namespace_subject_keys(db, namespace)
+    barrier_group = await _get_barrier_group(db, namespace, req.agent_id)
 
     results = await hybrid_recall(
         db=db,
@@ -240,6 +287,7 @@ async def recall_memories(
         as_of=req.as_of,
         filters=req.filters,
         subject_keys=subject_keys,
+        barrier_group=barrier_group,
     )
 
     # Audit log the recall
@@ -261,10 +309,150 @@ async def recall_memories(
     await db.commit()
 
     memories_out = [_memory_to_out(mem, content) for mem, _, content in results]
-    return RecallResult(
+    result = RecallResult(
         memories=memories_out,
         as_of=req.as_of,
         total_candidates=len(results),
+    )
+
+    # ── Hot cache (Redis) write ─────────────────────────────────────────────
+    if settings.recall_cache_enabled:
+        await set_cached_recall(
+            namespace, req.agent_id, req.query, req.as_of, req.k, req.filters,
+            result.model_dump_json(),
+            settings.recall_cache_ttl_seconds,
+        )
+
+    return result
+
+
+async def batch_add_memories(
+    db: AsyncSession,
+    namespace: str,
+    reqs: list[MemoryAdd],
+) -> MemoryBatchResult:
+    """
+    Add multiple memories sequentially in a single request.
+
+    Each memory runs the full supersession funnel, advisory lock, and event-log
+    write independently.  Sequential (not parallel) so that later items in the
+    batch can supersede earlier ones in the same batch — matching the behaviour
+    a caller would get by calling /v1/memories once per item.
+    """
+    out: list[MemoryOut] = []
+    for req in reqs:
+        out.append(await add_memory(db, namespace, req))
+    return MemoryBatchResult(added=len(out), memories=out)
+
+
+async def get_pending_supersessions(
+    db: AsyncSession,
+    namespace: str,
+    confidence_threshold: Optional[float] = None,
+    limit: int = 50,
+) -> SupersessionReviewResult:
+    """
+    Return supersession events whose confidence is below the configured threshold.
+
+    These are the cases the Stage 2/3 engine was uncertain about and a human
+    reviewer should inspect before treating the old fact as definitively stale.
+    """
+    settings = get_settings()
+    threshold = confidence_threshold if confidence_threshold is not None else settings.supersession_review_threshold
+
+    stmt = (
+        select(EventLog)
+        .where(
+            and_(
+                EventLog.namespace == namespace,
+                EventLog.op == "supersede",
+            )
+        )
+        .order_by(EventLog.created_at.desc())
+        .limit(limit * 4)  # over-fetch; confidence filter is in Python for SQLite compat
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    items: list[SupersessionReviewItem] = []
+    for row in rows:
+        payload = dict(row.payload or {})
+        confidence = float(payload.get("confidence", 1.0))
+        if confidence >= threshold:
+            continue
+        items.append(SupersessionReviewItem(
+            event_id=row.id,
+            memory_id=row.memory_id,
+            superseded_by=payload.get("superseded_by"),
+            confidence=confidence,
+            relation=payload.get("relation", "SUPERSEDES"),
+            rationale=payload.get("rationale"),
+            adjudication_stage=payload.get("adjudication_stage", 2),
+            created_at=row.created_at,
+            content_hash=row.content_hash,
+        ))
+        if len(items) >= limit:
+            break
+
+    return SupersessionReviewResult(
+        items=items,
+        total=len(items),
+        confidence_threshold=threshold,
+    )
+
+
+async def apply_supersession_action(
+    db: AsyncSession,
+    namespace: str,
+    memory_id: UUID,
+    action: SupersessionAction,
+) -> SupersessionActionResult:
+    """
+    Confirm or reject a supersession event from the review queue.
+
+    confirm — the supersession was correct; write an audit event so a reviewer's
+              name/note is on record. No data changes (old memory stays superseded).
+
+    reject  — the supersession was wrong; restore the old memory as currently valid
+              (valid_to = NULL, superseded_by = NULL).  Both old and new memory are
+              now valid — treated as additive facts, each standing on their own.
+              Write an immutable audit event logging the rejection.
+    """
+    mem = await db.get(Memory, memory_id)
+    if mem is None or mem.namespace != namespace:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if action.action not in ("confirm", "reject"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="action must be 'confirm' or 'reject'")
+
+    now = datetime.now(timezone.utc)
+
+    if action.action == "reject":
+        mem.valid_to = None
+        mem.superseded_by = None
+        mem.supersession_confidence = None
+        op = "supersession_rejected"
+    else:
+        op = "supersession_confirmed"
+
+    db.add(EventLog(
+        namespace=namespace,
+        agent_id=mem.agent_id,
+        op=op,
+        memory_id=mem.id,
+        content_hash=mem.content_hash,
+        payload={
+            "reviewer_note": action.reviewer_note,
+            "action": action.action,
+            "actioned_at": now.isoformat(),
+        },
+    ))
+    await db.commit()
+    return SupersessionActionResult(
+        memory_id=memory_id,
+        action=action.action,
+        applied_at=now,
     )
 
 

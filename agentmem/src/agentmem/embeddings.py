@@ -26,8 +26,9 @@ class VoyageProvider(EmbeddingProvider):
         import voyageai
         settings = get_settings()
         self._client = voyageai.AsyncClient(api_key=settings.voyage_api_key)
-        # voyage-finance-2 or voyage-3-large; confirm current model name before prod
-        self._model = "voyage-3-large"
+        # voyage-finance-2: domain-tuned for financial text, ~4pt MTEB gain over general models.
+        # Verify the current model name and pricing at docs.voyageai.com before migration.
+        self._model = "voyage-finance-2"
 
     async def embed(self, texts: List[str]) -> List[List[float]]:
         result = await self._client.embed(texts, model=self._model, input_type="document")

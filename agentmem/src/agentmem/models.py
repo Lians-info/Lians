@@ -78,6 +78,11 @@ class Memory(Base):
     superseded_by = Column(UUID(as_uuid=True), ForeignKey("memories.id"), nullable=True)
     supersession_confidence = Column(Float, nullable=True)
 
+    # Information barrier group — only agents in the same group can recall this memory.
+    # NULL means the memory is untagged (visible to all agents in the namespace, including
+    # those with no barrier group assignment such as compliance officers).
+    barrier_group = Column(String, nullable=True, index=True)
+
     importance = Column(Float, nullable=False, default=0.5)
     source = Column(String, nullable=True)
     content_hash = Column(String, nullable=False, index=True)
@@ -124,6 +129,25 @@ class EventLog(Base):
     memory_id = Column(UUID(as_uuid=True), nullable=True)
     content_hash = Column(String, nullable=True)
     payload = Column(JSON, nullable=False, server_default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class AgentBarrierGroup(Base):
+    """
+    Information barrier (Chinese wall) assignments.
+
+    An agent assigned to a group can only recall memories tagged with that group
+    OR memories with no barrier_group (public within the namespace).  Agents with
+    no assignment (e.g. compliance officers) see everything in the namespace.
+
+    Walls are enforced at recall time by hybrid_recall — they are NOT enforced at
+    write time so that a memory can be tagged with any group by any writer.
+    """
+    __tablename__ = "agent_barrier_groups"
+
+    agent_id = Column(String, primary_key=True)
+    namespace = Column(String, nullable=False, index=True)
+    group_name = Column(String, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 

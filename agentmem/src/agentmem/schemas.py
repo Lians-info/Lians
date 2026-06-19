@@ -27,6 +27,7 @@ class MemoryOut(BaseModel):
     valid_to: Optional[datetime]
     superseded_by: Optional[UUID]
     supersession_confidence: Optional[float]
+    barrier_group: Optional[str] = None
     importance: float
     source: Optional[str]
     content_hash: str
@@ -100,3 +101,55 @@ class SupersessionResult(BaseModel):
     confidence: float
     superseded_ids: list[UUID] = Field(default_factory=list)
     rationale: Optional[str] = None
+
+
+class SupersessionAction(BaseModel):
+    action: str  # "confirm" | "reject"
+    reviewer_note: Optional[str] = None
+
+
+class SupersessionActionResult(BaseModel):
+    memory_id: UUID
+    action: str
+    applied_at: datetime
+
+
+class BarrierGroupAssign(BaseModel):
+    agent_id: str
+    group_name: str
+
+
+class BarrierGroupOut(BaseModel):
+    agent_id: str
+    namespace: str
+    group_name: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MemoryBatchAdd(BaseModel):
+    memories: list[MemoryAdd]
+
+
+class MemoryBatchResult(BaseModel):
+    added: int
+    memories: list[MemoryOut]
+
+
+class SupersessionReviewItem(BaseModel):
+    event_id: UUID
+    memory_id: UUID
+    superseded_by: Optional[UUID]
+    confidence: float
+    relation: str
+    rationale: Optional[str]
+    adjudication_stage: int
+    created_at: datetime
+    content_hash: Optional[str]
+
+
+class SupersessionReviewResult(BaseModel):
+    items: list[SupersessionReviewItem]
+    total: int
+    confidence_threshold: float

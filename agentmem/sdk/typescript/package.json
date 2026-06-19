@@ -1,0 +1,48 @@
+{
+  "name": "agentmem-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for AgentMem — financial-agent memory layer with bitemporal recall and audit trail",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./langchain": {
+      "import": "./dist/langchain.js",
+      "types": "./dist/langchain.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.2.0",
+    "zod": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": { "optional": true },
+    "zod": { "optional": true }
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@langchain/core": "^0.3.0",
+    "zod": "^3.23.0"
+  },
+  "keywords": [
+    "agentmem",
+    "memory",
+    "llm",
+    "finance",
+    "langchain",
+    "bitemporal",
+    "audit"
+  ],
+  "license": "MIT"
+}

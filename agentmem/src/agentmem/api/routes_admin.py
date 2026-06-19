@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import ApiKey
-from ..schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyOut
+from ..models import ApiKey, AgentBarrierGroup
+from ..schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyOut, BarrierGroupAssign, BarrierGroupOut
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
@@ -167,3 +167,81 @@ async def rotate_key(
         revoked_at=new_row.revoked_at,
         key=raw,
     )
+
+
+# ── Information Barrier Group Management ────────────────────────────────────
+
+@router.post(
+    "/barriers",
+    response_model=BarrierGroupOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Assign an agent to an information barrier group",
+)
+async def assign_barrier_group(
+    body: BarrierGroupAssign,
+    namespace: str = Query(..., description="Target namespace"),
+    _: None = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> BarrierGroupOut:
+    """
+    Assign an agent to a Chinese-wall barrier group.
+
+    After this call, the agent can only recall memories tagged with the same
+    group_name (or untagged public memories).  Memories written by this agent
+    will be tagged with group_name automatically.
+
+    To grant compliance-officer access (see all memories), do NOT assign the
+    agent to any group — unassigned agents see everything in the namespace.
+
+    Example barrier groups:  equity_desk, fixed_income, investment_banking
+    """
+    # Upsert: if the agent already has a group, replace it
+    existing = await db.get(AgentBarrierGroup, body.agent_id)
+    if existing and existing.namespace == namespace:
+        existing.group_name = body.group_name
+        row = existing
+    else:
+        row = AgentBarrierGroup(
+            agent_id=body.agent_id,
+            namespace=namespace,
+            group_name=body.group_name,
+        )
+        db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return BarrierGroupOut.model_validate(row)
+
+
+@router.get(
+    "/barriers",
+    response_model=list[BarrierGroupOut],
+    summary="List information barrier group assignments",
+)
+async def list_barrier_groups(
+    namespace: str = Query(..., description="Target namespace"),
+    _: None = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[BarrierGroupOut]:
+    stmt = select(AgentBarrierGroup).where(AgentBarrierGroup.namespace == namespace)
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    return [BarrierGroupOut.model_validate(r) for r in rows]
+
+
+@router.delete(
+    "/barriers/{agent_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove an agent from its barrier group (grants full-namespace access)",
+)
+async def remove_barrier_group(
+    agent_id: str,
+    namespace: str = Query(..., description="Target namespace"),
+    _: None = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    row = await db.get(AgentBarrierGroup, agent_id)
+    if row is None or row.namespace != namespace:
+        raise HTTPException(status_code=404, detail="Barrier group assignment not found")
+    await db.delete(row)
+    await db.commit()
+    return Response(status_code=204)

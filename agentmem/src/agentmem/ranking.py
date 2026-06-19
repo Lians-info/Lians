@@ -2,7 +2,7 @@
 Hybrid retrieval and temporal ranking.
 
 score = w_sem * cosine_similarity
-      + w_lex * lexical_match   (simple token overlap; replace with BM25 in prod)
+      + w_lex * BM25_score       (Okapi BM25; in-process after vector pre-filter + decrypt)
       + w_rec * recency_decay
       + w_imp * importance
 
@@ -41,13 +41,41 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb + 1e-9)
 
 
-def _lexical_score(query: str, content: str) -> float:
-    """Token overlap (Jaccard-ish). Replace with BM25 in production."""
+_BM25_K1 = 1.5
+_BM25_B = 0.75
+# Calibrated for short financial facts (guidance updates, rating changes, metrics).
+# Increase if your corpus contains long documents (earnings transcripts, 10-Ks).
+_BM25_AVG_DOC_LEN = 50.0
+
+
+def _bm25_score(query: str, content: str) -> float:
+    """
+    Okapi BM25 in-process, computed after vector pre-filter + decryption.
+
+    IDF is constant (no corpus statistics available at score time); the
+    TF-normalization term still beats Jaccard because it rewards term
+    frequency while penalizing long documents — critical for financial
+    facts where "guidance raised to $36B" should outscore a 200-word
+    paragraph that mentions "guidance" once in passing.
+    """
     q_tokens = set(query.lower().split())
-    c_tokens = set(content.lower().split())
-    if not q_tokens:
+    c_words = content.lower().split()
+    if not q_tokens or not c_words:
         return 0.0
-    return len(q_tokens & c_tokens) / len(q_tokens | c_tokens)
+    doc_len = len(c_words)
+    tf: dict[str, int] = {}
+    for w in c_words:
+        tf[w] = tf.get(w, 0) + 1
+    score = 0.0
+    for token in q_tokens:
+        f = tf.get(token, 0)
+        if f == 0:
+            continue
+        tf_norm = (f * (_BM25_K1 + 1)) / (
+            f + _BM25_K1 * (1 - _BM25_B + _BM25_B * doc_len / _BM25_AVG_DOC_LEN)
+        )
+        score += tf_norm
+    return score / len(q_tokens)
 
 
 def _recency_decay(event_time: datetime) -> float:
@@ -121,15 +149,27 @@ async def hybrid_recall(
     as_of: Optional[datetime] = None,
     filters: Optional[dict[str, Any]] = None,
     subject_keys: Optional[dict[str, bytes]] = None,  # subject_id -> plaintext key
+    barrier_group: Optional[str] = None,
 ) -> list[tuple[Memory, float, Optional[str]]]:
     """
     Returns list of (Memory, score, decrypted_content).
+
+    barrier_group: when set, only memories tagged with that group OR untagged memories
+    (barrier_group IS NULL) are returned.  Pass None to disable barrier filtering
+    (compliance/audit context that must see all memories).
     """
     conditions = [
         Memory.namespace == namespace,
         Memory.agent_id == agent_id,
         Memory.erased_at.is_(None),
     ]
+
+    # Information barrier: agent belongs to a group → only sees memories tagged
+    # with the same group, plus untagged memories (shared/public within namespace).
+    if barrier_group is not None:
+        conditions.append(
+            or_(Memory.barrier_group == barrier_group, Memory.barrier_group.is_(None))
+        )
 
     if as_of is not None:
         # Temporal filter: memory must be valid at the as_of point
@@ -167,7 +207,7 @@ async def hybrid_recall(
 
         emb = list(mem.embedding) if mem.embedding is not None else None
         sem = _cosine(query_embedding, emb) if emb else 0.0
-        lex = _lexical_score(query, content or "") if content else 0.0
+        lex = _bm25_score(query, content or "") if content else 0.0
         rec = _recency_decay(mem.event_time)
         val = _validity_score(mem, as_of)
 
