@@ -257,6 +257,16 @@ async def add_memory(
         await invalidate_agent(namespace, req.agent_id)
         span.set_attribute("memory_id", str(mem.id))
         span.set_attribute("supersession_relation", supersession.relation)
+
+        # Usage metering — fire-and-forget, never blocks the hot path.
+        from .metering import get_customer_id, queue_usage_event
+        customer_id = await get_customer_id(db, namespace)
+        if customer_id:
+            settings = get_settings()
+            queue_usage_event(
+                settings.stripe_meter_write_event,
+                customer_id, 1, f"w:{mem.id}",
+            )
         return _memory_to_out(mem, req.content)
 
 
@@ -304,7 +314,7 @@ async def recall_memories(
         span.set_attribute("result_count", len(results))
 
         # Audit log the recall
-        await chain_log(
+        recall_log = await chain_log(
             db, namespace=namespace, agent_id=req.agent_id,
             op="recall",
             payload={
@@ -324,6 +334,15 @@ async def recall_memories(
             as_of=req.as_of,
             total_candidates=len(results),
         )
+
+        # Usage metering — fire-and-forget, never blocks the hot path.
+        from .metering import get_customer_id, queue_usage_event
+        customer_id = await get_customer_id(db, namespace)
+        if customer_id:
+            queue_usage_event(
+                settings.stripe_meter_recall_event,
+                customer_id, 1, f"r:{recall_log.id}",
+            )
 
         # ── Hot cache (Redis) write ─────────────────────────────────────────────
         if settings.recall_cache_enabled:

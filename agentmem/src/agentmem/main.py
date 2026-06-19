@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI):
     from .config import get_settings
     from .kms import load_master_key
     from .scheduler import run_retention_scheduler
+    from .metering import run_metering_worker
     settings = get_settings()
 
     setup_logging(level=settings.log_level, json_logs=settings.log_json)
@@ -81,14 +82,26 @@ async def lifespan(app: FastAPI):
             name="retention-scheduler",
         )
 
+    metering_task: asyncio.Task | None = None
+    if settings.stripe_api_key:
+        metering_task = asyncio.create_task(
+            run_metering_worker(
+                settings.stripe_api_key,
+                settings.stripe_meter_write_event,
+                settings.stripe_meter_recall_event,
+            ),
+            name="metering-worker",
+        )
+
     yield
 
-    if scheduler_task is not None:
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
+    for task in (scheduler_task, metering_task):
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     logger.info("AgentMem shutdown")
 

@@ -18,12 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import ApiKey, AgentBarrierGroup
+from ..models import ApiKey, AgentBarrierGroup, NamespacePolicy
 from ..schemas import (
     ApiKeyCreate, ApiKeyCreated, ApiKeyOut,
     BarrierGroupAssign, BarrierGroupOut,
     RetentionPolicyIn, RetentionPolicyOut, RetentionPruneResult,
     AuditChainVerifyResult, AuditExportResult,
+    NamespaceBillingIn, NamespaceBillingOut,
 )
 from ..memory_service import get_retention_policy, set_retention_policy, prune_expired_content
 from ..audit_chain import verify_chain, export_audit_log, chain_log
@@ -445,3 +446,69 @@ async def export_audit(
         include_chain_status=verify,
     )
     return AuditExportResult(**data)
+
+
+# ── Stripe usage metering ────────────────────────────────────────────────────
+
+@router.get(
+    "/billing/{namespace}",
+    response_model=NamespaceBillingOut,
+    summary="Get the Stripe customer ID assigned to a namespace",
+)
+async def get_billing(
+    namespace: str,
+    _: None = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> NamespaceBillingOut:
+    """
+    Return the Stripe customer ID wired to *namespace*.
+
+    When stripe_customer_id is null the namespace is not metered — writes and
+    recalls are not reported to Stripe regardless of STRIPE_API_KEY.
+    """
+    pol = await db.get(NamespacePolicy, namespace)
+    return NamespaceBillingOut(
+        namespace=namespace,
+        stripe_customer_id=pol.stripe_customer_id if pol else None,
+    )
+
+
+@router.put(
+    "/billing/{namespace}",
+    response_model=NamespaceBillingOut,
+    summary="Set or clear the Stripe customer ID for a namespace",
+)
+async def set_billing(
+    namespace: str,
+    body: NamespaceBillingIn,
+    _: None = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> NamespaceBillingOut:
+    """
+    Assign a Stripe Customer ID to *namespace*.
+
+    After this call all memory writes and recalls in the namespace are metered
+    via Stripe Meters API.  Set stripe_customer_id to null to stop billing.
+
+    The customer ID is cached for up to 60 s in each worker process; billing
+    starts within one minute of this call without requiring a restart.
+    """
+    from ..metering import invalidate_customer_cache
+
+    pol = await db.get(NamespacePolicy, namespace)
+    if pol is None:
+        pol = NamespacePolicy(namespace=namespace)
+        db.add(pol)
+    pol.stripe_customer_id = body.stripe_customer_id
+    await chain_log(
+        db, namespace=namespace, agent_id=_ADMIN_AGENT,
+        op="admin.billing_set",
+        payload={"stripe_customer_id": body.stripe_customer_id},
+    )
+    await db.commit()
+    await db.refresh(pol)
+    invalidate_customer_cache(namespace)
+    return NamespaceBillingOut(
+        namespace=namespace,
+        stripe_customer_id=pol.stripe_customer_id,
+    )

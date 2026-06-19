@@ -35,6 +35,7 @@ local = [
 ]
 langchain = ["langchain-core>=0.2.0"]
 mcp = ["mcp>=1.0.0", "httpx>=0.27.0"]
+billing = ["stripe>=7.0.0"]
 otel = [
     "opentelemetry-api>=1.24.0",
     "opentelemetry-sdk>=1.24.0",

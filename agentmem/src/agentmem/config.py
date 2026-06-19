@@ -75,6 +75,13 @@ class Settings(BaseSettings):
     # Interval between automated prune cycles (hours). Set to 0 to disable.
     retention_prune_interval_hours: float = 24.0
 
+    # Stripe usage metering — optional; metering is silently disabled when api_key is empty.
+    # Requires pip install agentmem[billing] (stripe>=7.0.0).
+    # Set stripe_customer_id per namespace via PUT /v1/admin/billing/{namespace}.
+    stripe_api_key: str = ""
+    stripe_meter_write_event: str = "agentmem_memory_write"
+    stripe_meter_recall_event: str = "agentmem_memory_recall"
+
     # Air-gapped mode — guarantees no customer data leaves the deployment boundary.
     # When True, startup validation enforces:
     #   1. EMBEDDING_PROVIDER must be "sentence-transformers" or "local"

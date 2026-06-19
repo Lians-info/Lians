@@ -184,6 +184,7 @@ class NamespacePolicy(Base):
                         NULL means retain forever.
     audit_retention_days — minimum days to keep event_log rows (SEC 17a-4 / CFTC default 5yr).
     legal_hold        — when True, prune is blocked regardless of ttl settings.
+    stripe_customer_id — Stripe Customer ID for usage metering.  NULL = not billed.
     """
     __tablename__ = "namespace_policies"
 
@@ -191,4 +192,5 @@ class NamespacePolicy(Base):
     content_ttl_days = Column(sa_types.Integer, nullable=True)
     audit_retention_days = Column(sa_types.Integer, nullable=False, default=1825)
     legal_hold = Column(Boolean, nullable=False, default=False)
+    stripe_customer_id = Column(String, nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)

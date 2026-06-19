@@ -177,6 +177,17 @@ class RetentionPruneResult(BaseModel):
     cutoff_date: datetime
 
 
+class NamespaceBillingIn(BaseModel):
+    stripe_customer_id: Optional[str] = None   # None clears the customer (stops billing)
+
+
+class NamespaceBillingOut(BaseModel):
+    namespace: str
+    stripe_customer_id: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
 class AuditChainViolation(BaseModel):
     row_id: str
     kind: str   # "hash_mismatch" | "orphaned_parent"
