@@ -12,10 +12,17 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Embeddings
-    embedding_provider: str = "local"  # "voyage" | "openai" | "local"
+    # "voyage"               — Voyage AI (best finance quality, requires VOYAGE_API_KEY)
+    # "openai"               — OpenAI text-embedding-3-small (dev fallback, requires OPENAI_API_KEY)
+    # "sentence-transformers" — fully self-hosted, no external API calls (requires pip install agentmem[local])
+    # "local"                — deterministic hash-projection for unit tests only
+    embedding_provider: str = "local"
     voyage_api_key: str = ""
     openai_api_key: str = ""
     embedding_dim: int = 1024
+    # Model for sentence-transformers provider. Must produce 1024-dim embeddings.
+    # For air-gapped deployments: pre-download and set to an absolute local path.
+    sentence_transformer_model: str = "BAAI/bge-large-en-v1.5"
 
     # Crypto
     master_encryption_key: str = ""  # base64-encoded 32 bytes
@@ -34,6 +41,13 @@ class Settings(BaseSettings):
     recall_cache_ttl_seconds: int = 60
     # Supersession review queue — supersessions below this confidence are flagged for review
     supersession_review_threshold: float = 0.75
+
+    # Air-gapped mode — guarantees no customer data leaves the deployment boundary.
+    # When True, startup validation enforces:
+    #   1. EMBEDDING_PROVIDER must be "sentence-transformers" or "local"
+    #   2. SUPERSESSION_LLM_STAGE must be False
+    # Set to True for any regulated deployment where data must not leave the network.
+    airgap_mode: bool = False
 
 
 @lru_cache

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import hashlib
 import numpy as np
 from abc import ABC, abstractmethod
@@ -53,6 +54,66 @@ class OpenAIProvider(EmbeddingProvider):
         return [item.embedding for item in resp.data]
 
 
+class SentenceTransformerProvider(EmbeddingProvider):
+    """
+    Fully self-hosted embeddings — no data leaves the machine.
+
+    Uses sentence-transformers running in a thread-pool executor so inference
+    does not block the async event loop.  The model is loaded lazily on first
+    call so startup stays fast even for large models.
+
+    Default model: BAAI/bge-large-en-v1.5 (1024-dim, strong general quality,
+    Apache 2.0 license).  For a truly air-gapped deployment, pre-download the
+    model files and point SENTENCE_TRANSFORMER_MODEL at the local directory:
+
+        SENTENCE_TRANSFORMER_MODEL=/opt/models/bge-large-en-v1.5
+
+    sentence-transformers will load from disk without any network calls.
+    """
+    dim = 1024
+
+    def __init__(self):
+        settings = get_settings()
+        self._model_name = settings.sentence_transformer_model
+        self._model = None
+        self._load_lock = asyncio.Lock()
+
+    def _load(self):
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(self._model_name)
+        # Validate dimension before the first real request, not on every call.
+        probe = model.encode(["probe"], normalize_embeddings=True)
+        actual_dim = probe.shape[1]
+        if actual_dim != self.dim:
+            raise ValueError(
+                f"Model '{self._model_name}' produces {actual_dim}-dim embeddings "
+                f"but the database schema expects {self.dim} dims. "
+                f"Use a 1024-dim model (e.g. BAAI/bge-large-en-v1.5, "
+                f"intfloat/e5-large-v2) or reprovision with a matching EMBEDDING_DIM."
+            )
+        return model
+
+    async def _get_model(self):
+        if self._model is not None:
+            return self._model
+        async with self._load_lock:
+            if self._model is not None:
+                return self._model
+            loop = asyncio.get_event_loop()
+            self._model = await loop.run_in_executor(None, self._load)
+            return self._model
+
+    async def embed(self, texts: List[str]) -> List[List[float]]:
+        model = await self._get_model()
+        loop = asyncio.get_event_loop()
+        # Run blocking CPU inference off the event loop thread.
+        result = await loop.run_in_executor(
+            None,
+            lambda: model.encode(texts, normalize_embeddings=True).tolist(),
+        )
+        return result
+
+
 class LocalProvider(EmbeddingProvider):
     """Deterministic word-projection for tests — zero API calls.
 
@@ -88,6 +149,8 @@ def get_provider() -> EmbeddingProvider:
             return VoyageProvider()
         case "openai":
             return OpenAIProvider()
+        case "sentence-transformers":
+            return SentenceTransformerProvider()
         case _:
             return LocalProvider()
 
