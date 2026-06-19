@@ -25,7 +25,29 @@ class Settings(BaseSettings):
     sentence_transformer_model: str = "BAAI/bge-large-en-v1.5"
 
     # Crypto
-    master_encryption_key: str = ""  # base64-encoded 32 bytes
+    master_encryption_key: str = ""  # base64-encoded 32 bytes (used by kms_provider="env")
+
+    # KMS provider — controls how the master_encryption_key is fetched at startup
+    # "env"   — read MASTER_ENCRYPTION_KEY env var (default; dev-friendly)
+    # "aws"   — AWS KMS envelope decryption (requires boto3)
+    # "azure" — Azure Key Vault Secrets (requires azure-keyvault-secrets + azure-identity)
+    # "vault" — HashiCorp Vault KV v2 (requires hvac)
+    kms_provider: str = "env"
+
+    # AWS KMS settings (used when kms_provider="aws")
+    kms_aws_key_id: str = ""          # CMK ARN or alias (optional; KMS infers from CiphertextBlob)
+    kms_aws_region: str = "us-east-1"
+    kms_aws_encrypted_key: str = ""   # base64 CiphertextBlob from GenerateDataKey
+
+    # Azure Key Vault settings (used when kms_provider="azure")
+    kms_azure_vault_url: str = ""               # e.g. https://myvault.vault.azure.net/
+    kms_azure_secret_name: str = "agentmem-master-key"
+
+    # HashiCorp Vault settings (used when kms_provider="vault")
+    kms_vault_addr: str = "http://127.0.0.1:8200"
+    kms_vault_token: str = ""
+    kms_vault_path: str = "agentmem/master-key"
+    kms_vault_mount_point: str = "secret"
 
     # API
     api_secret_seed: str = "dev-seed-change-in-prod"

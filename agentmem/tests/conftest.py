@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.agentmem.db import Base
 from src.agentmem.config import get_settings, Settings
+import src.agentmem.kms as _kms
 
 
 # Override settings for tests
@@ -18,9 +19,12 @@ from src.agentmem.config import get_settings, Settings
 def test_settings(monkeypatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER", "local")
     monkeypatch.setenv("MASTER_ENCRYPTION_KEY", "")
+    monkeypatch.setenv("KMS_PROVIDER", "env")
     get_settings.cache_clear()
+    _kms._reset_cache()
     yield
     get_settings.cache_clear()
+    _kms._reset_cache()
 
 
 @pytest_asyncio.fixture

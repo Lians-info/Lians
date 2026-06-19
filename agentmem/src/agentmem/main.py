@@ -54,6 +54,7 @@ def _validate_airgap(settings) -> None:
 async def lifespan(app: FastAPI):
     from .db import engine
     from .config import get_settings
+    from .kms import load_master_key
     settings = get_settings()
 
     setup_logging(level=settings.log_level, json_logs=settings.log_json)
@@ -61,10 +62,13 @@ async def lifespan(app: FastAPI):
     if settings.airgap_mode:
         _validate_airgap(settings)
 
+    await load_master_key()
+
     logger.info("AgentMem starting", extra={
         "embedding_provider": settings.embedding_provider,
         "airgap_mode": settings.airgap_mode,
         "llm_stage": settings.supersession_llm_stage,
+        "kms_provider": settings.kms_provider,
     })
 
     instrument_sqlalchemy(engine)

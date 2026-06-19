@@ -114,6 +114,7 @@ class LocalAgentMemClient:
 
     async def _init_db(self) -> None:
         from src.agentmem.models import Base  # lazy import; avoids circular refs
+        from src.agentmem.kms import load_master_key
 
         # Drop Postgres-only indexes so SQLite doesn't choke
         pg_indexes = [
@@ -127,6 +128,8 @@ class LocalAgentMemClient:
 
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+        await load_master_key()
 
     def __enter__(self) -> "LocalAgentMemClient":
         return self

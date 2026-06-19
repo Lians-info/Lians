@@ -14,22 +14,12 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 
-from .config import get_settings
-
-
-def _master_key() -> bytes:
-    """Load master key from config (base64-encoded 32 bytes)."""
-    settings = get_settings()
-    raw = settings.master_encryption_key
-    if not raw:
-        # Dev-only: deterministic key; never use in production
-        return b"\x00" * 32
-    return base64.b64decode(raw)
+from .kms import get_master_key
 
 
 def _wrap_key(content_key: bytes) -> bytes:
     """Encrypt a per-subject key with the master key (AES-GCM)."""
-    master = _master_key()
+    master = get_master_key()
     aesgcm = AESGCM(master)
     nonce = os.urandom(12)
     ct = aesgcm.encrypt(nonce, content_key, None)
@@ -38,7 +28,7 @@ def _wrap_key(content_key: bytes) -> bytes:
 
 def _unwrap_key(wrapped: bytes) -> bytes:
     """Decrypt a per-subject key using the master key."""
-    master = _master_key()
+    master = get_master_key()
     aesgcm = AESGCM(master)
     nonce, ct = wrapped[:12], wrapped[12:]
     return aesgcm.decrypt(nonce, ct, None)
