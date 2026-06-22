@@ -1,4 +1,4 @@
-﻿# Lian (蓮)
+﻿# Lian
 
 **Financial-grade agent memory** — the only memory layer designed for regulated environments.
 
