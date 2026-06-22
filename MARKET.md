@@ -24,9 +24,11 @@ managers globally. AUM range: $100M–$500B+.
 analyst reports need provably-current, point-in-time-correct memory. Stale facts
 contaminate signals. Unauditable memory fails compliance review.
 
-**Why they buy vs. build:** The correctness layer (bitemporal store, supersession engine,
-audit reconstruction) is exactly what senior quant engineers don't want to own. It's
-boring to build, dangerous to get wrong, and never the fund's core IP.
+**Why they buy vs. build:** Graphiti (open-source, 20k+ GitHub stars) now gives quants
+a free bitemporal graph model. What they still can't get from Graphiti or any OSS
+tool: a tamper-evident audit chain, GDPR crypto-shred that preserves the audit hash,
+information barriers enforced at the DB layer, and backtest-contamination detection.
+Those four are boring to build, dangerous to get wrong, and never the fund's core IP.
 
 **Market sizing:**
 - ~800 systematic funds spending $2–10M/year on AI infrastructure
@@ -63,8 +65,8 @@ institutional data schemas (Bloomberg, FactSet, ADV filings). No rewrite.
 
 ## Rung 3 — Other regulated, audit-heavy industries
 
-The bitemporal memory primitives (point-in-time correctness, audit reconstruction,
-crypto-shred erasure) are not finance-specific. They are **requirements of any domain
+The compliance memory primitives (audit reconstruction, crypto-shred erasure,
+information barriers, backtest contamination detection) are not finance-specific. They are **requirements of any domain
 where an AI agent accumulates facts that can change, be revised, or be legally erased.**
 
 ### Legal / e-discovery
@@ -108,8 +110,8 @@ processing), AgentMem is positioned as the default because:
 
 1. We started at the strictest end (systematic finance)
 2. We have audit reconstruction, crypto-shred, and hash chains already in production
-3. We have the vocabulary regulators will use (bitemporal, erasure certificate,
-   information barrier)
+3. We have the vocabulary regulators will use (audit reconstruction, erasure
+   certificate, information barrier, backtest contamination)
 
 **This is not a linear TAM expansion — it's a category creation.** If this scenario
 plays out, the market is larger than any Rung analysis can capture.
@@ -137,15 +139,19 @@ logos that prove the hardest customer trusts the engine.
 
 ## Competitive moat summary
 
-| Dimension | Mem0 | Zep | In-house build | AgentMem |
-|-----------|------|-----|---------------|----------|
-| Bitemporal correctness | ✗ | ✗ | Approximate | ✓ |
-| Point-in-time recall | ✗ | ✗ | Rarely built | ✓ |
-| Audit reconstruction | ✗ | ✗ | "We'll add logging" | ✓ |
-| GDPR crypto-shred + audit | ✗ | ✗ | Contradictory | ✓ |
-| Supersession on real data | ✗ | Partial | Unsolved | ✓ |
-| Information barriers | ✗ | ✗ | Manual, leaky | ✓ |
-| Backtest contamination | ✗ | ✗ | Not on roadmap | ✓ |
+| Dimension | Mem0 | Graphiti/Zep† | In-house build | AgentMem |
+|-----------|------|--------------|---------------|----------|
+| Bitemporal storage | ✗ | ✓ (graph) | Approximate | ✓ (relational) |
+| Point-in-time recall | ✗ | Partial‡ | Rarely built | ✓ |
+| Supersession rule engine | ✗ | ✗ (LLM-only) | Unsolved | ✓ |
+| SEC 17a-4 audit hash chain | ✗ | ✗ | "We'll add logging" | ✓ |
+| GDPR crypto-shred + audit survival | ✗ | ✗ | Contradictory | ✓ |
+| Information barriers (DB-layer RLS) | ✗ | ✗ | Manual, leaky | ✓ |
+| Backtest contamination detection | ✗ | ✗ | Not on roadmap | ✓ |
 
-The in-house build is the real competitor. This moat is about making their build
-look expensive, risky, and permanently behind — not about features vs. features.
+†Graphiti (Jan 2025, 20k+ GitHub stars) ships a genuine bitemporal graph model.
+‡Temporal graph queries exist; no compliance-grade audit API or hash chain.
+
+**The moat has shifted.** Graphiti has closed the temporal gap. The in-house build
+now gets bitemporal for free from Graphiti. What neither Graphiti nor any in-house
+build provides is the compliance stack — and that is the table stake for Rung 1 and 2 customers.

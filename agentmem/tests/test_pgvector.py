@@ -286,3 +286,153 @@ class TestEndToEnd:
         assert len(past.memories) >= 1
         assert all("400k" in (m.content or "") for m in past.memories)
         assert not any("450k" in (m.content or "") for m in past.memories)
+
+
+# ---------------------------------------------------------------------------
+# RLS information barrier tests (migration 0011_rls_barriers)
+# ---------------------------------------------------------------------------
+
+class TestRLSInformationBarriers:
+    """
+    Verify PostgreSQL RLS enforces information barriers at the DB layer.
+
+    These tests bypass the service layer and exercise the Postgres RLS policy
+    directly, confirming that FORCE ROW LEVEL SECURITY blocks cross-barrier
+    reads even when the app user owns the table.  This is AgentMem's primary
+    compliance differentiator vs. Graphiti/Zep (which has no DB-layer barrier
+    enforcement as of June 2026).
+
+    Each test uses an isolated namespace so parallel CI runs cannot interfere.
+    """
+
+    @staticmethod
+    def _ch(s: str) -> str:
+        import hashlib
+        return hashlib.sha256(s.encode()).hexdigest()
+
+    async def test_barrier_group_isolation(self, pg_engine):
+        """
+        A session with agentmem.barrier_group=A must not see memories tagged B.
+
+        This is the core RLS invariant: SET LOCAL agentmem.barrier_group = 'A'
+        causes the Postgres policy to filter out all rows where
+        barrier_group != 'A' AND barrier_group IS NOT NULL.
+        """
+        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy import text
+
+        group_a = f"rls-a-{uuid.uuid4().hex[:6]}"
+        group_b = f"rls-b-{uuid.uuid4().hex[:6]}"
+        ns = f"rls-iso-{uuid.uuid4().hex[:6]}"
+        now = datetime.now(timezone.utc)
+        id_a, id_b = str(uuid.uuid4()), str(uuid.uuid4())
+
+        factory = async_sessionmaker(pg_engine, expire_on_commit=False, class_=AsyncSession)
+
+        # Insert both rows — no session var set, so IS NULL branch passes for all rows.
+        async with factory() as db:
+            await db.execute(text("""
+                INSERT INTO memories
+                    (id, namespace, agent_id, content_hash,
+                     event_time, valid_from, ingestion_time, importance, barrier_group)
+                VALUES
+                    (:id_a, :ns, 'agent-a', :ha, :now, :now, :now, 0.9, :ga),
+                    (:id_b, :ns, 'agent-b', :hb, :now, :now, :now, 0.9, :gb)
+            """), dict(id_a=id_a, id_b=id_b, ns=ns,
+                       ha=self._ch("confidential-a"), hb=self._ch("confidential-b"),
+                       now=now, ga=group_a, gb=group_b))
+            await db.commit()
+
+        # Read as group_a — must see only id_a
+        async with factory() as db:
+            await db.execute(text("SET LOCAL agentmem.barrier_group TO :g"), {"g": group_a})
+            rows = (await db.execute(
+                text("SELECT id FROM memories WHERE namespace = :ns"), {"ns": ns}
+            )).fetchall()
+            visible = {str(r[0]) for r in rows}
+
+        assert id_a in visible, "group_a must see its own memory"
+        assert id_b not in visible, (
+            "RLS FAILED: group_a can read group_b memory — "
+            "FORCE ROW LEVEL SECURITY or the IS NULL policy is broken"
+        )
+
+    async def test_unbarriered_memories_visible_to_all(self, pg_engine):
+        """
+        Memories with barrier_group=NULL (public) are visible regardless of
+        which group the session is scoped to.  This covers shared market data
+        or namespace-wide facts that every agent should see.
+        """
+        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy import text
+
+        group_a = f"rls-open-{uuid.uuid4().hex[:6]}"
+        ns = f"rls-pub-{uuid.uuid4().hex[:6]}"
+        now = datetime.now(timezone.utc)
+        id_pub = str(uuid.uuid4())
+
+        factory = async_sessionmaker(pg_engine, expire_on_commit=False, class_=AsyncSession)
+
+        async with factory() as db:
+            await db.execute(text("""
+                INSERT INTO memories
+                    (id, namespace, agent_id, content_hash,
+                     event_time, valid_from, ingestion_time, importance)
+                VALUES (:id, :ns, 'shared', :ch, :now, :now, :now, 0.5)
+            """), dict(id=id_pub, ns=ns, ch=self._ch("public-fact"), now=now))
+            await db.commit()
+
+        async with factory() as db:
+            await db.execute(text("SET LOCAL agentmem.barrier_group TO :g"), {"g": group_a})
+            rows = (await db.execute(
+                text("SELECT id FROM memories WHERE namespace = :ns"), {"ns": ns}
+            )).fetchall()
+            visible = {str(r[0]) for r in rows}
+
+        assert id_pub in visible, (
+            "barrier_group=NULL memory must be visible to all groups — "
+            "the IS NULL branch of the RLS policy is not firing"
+        )
+
+    async def test_null_session_var_sees_all_rows(self, pg_engine):
+        """
+        When agentmem.barrier_group is not set (NULL), all rows are visible.
+        This is the admin / compliance-export path: no SET before the query
+        means current_setting(..., true) returns NULL, and the IS NULL OR
+        branch passes for every row.
+        """
+        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy import text
+
+        group_x = f"rls-adm-x-{uuid.uuid4().hex[:6]}"
+        group_y = f"rls-adm-y-{uuid.uuid4().hex[:6]}"
+        ns = f"rls-adm-{uuid.uuid4().hex[:6]}"
+        now = datetime.now(timezone.utc)
+        id_x, id_y = str(uuid.uuid4()), str(uuid.uuid4())
+
+        factory = async_sessionmaker(pg_engine, expire_on_commit=False, class_=AsyncSession)
+
+        async with factory() as db:
+            await db.execute(text("""
+                INSERT INTO memories
+                    (id, namespace, agent_id, content_hash,
+                     event_time, valid_from, ingestion_time, importance, barrier_group)
+                VALUES
+                    (:ix, :ns, 'agent-x', :hx, :now, :now, :now, 0.9, :gx),
+                    (:iy, :ns, 'agent-y', :hy, :now, :now, :now, 0.9, :gy)
+            """), dict(ix=id_x, iy=id_y, ns=ns,
+                       hx=self._ch("x"), hy=self._ch("y"),
+                       now=now, gx=group_x, gy=group_y))
+            await db.commit()
+
+        # No SET — current_setting('agentmem.barrier_group', true) IS NULL → all rows pass
+        async with factory() as db:
+            rows = (await db.execute(
+                text("SELECT id FROM memories WHERE namespace = :ns"), {"ns": ns}
+            )).fetchall()
+            visible = {str(r[0]) for r in rows}
+
+        assert id_x in visible and id_y in visible, (
+            "Admin path (no session var) must see all rows — "
+            "IS NULL check in RLS policy is not returning TRUE for NULL setting"
+        )

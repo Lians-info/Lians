@@ -133,7 +133,8 @@ def _build_server() -> Any:
                     "Retrieve memories that were valid at a specific past point in time. "
                     "Use for compliance and audit: 'What guidance did we have on 2026-03-01?' "
                     "Later superseding updates are excluded — this is true point-in-time recall. "
-                    "Neither mem0 nor Zep support this; it is the core compliance differentiator."
+                    "mem0 has no bitemporal model. Graphiti/Zep has temporal graph queries but "
+                    "no compliance audit stack (hash chain, crypto-shred, information barriers)."
                 ),
                 inputSchema={
                     "type": "object",

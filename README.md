@@ -2,22 +2,25 @@
 
 **Financial-grade agent memory** — the only memory layer designed for regulated environments.
 
-When a financial AI agent accumulates facts over time, those facts **change**. Last quarter's guidance is wrong today. A central bank rate decision supersedes the previous one. A price target gets revised. Systems like mem0 and Zep return all of these with equal rank — your LLM gets contaminated context.
+When a financial AI agent accumulates facts over time, those facts **change**. Last quarter's guidance is wrong today. A central bank rate decision supersedes the previous one. A price target gets revised. Systems like mem0 return all of these with equal rank — your LLM gets contaminated context. Graphiti/Zep (Zep's open-source temporal graph, 20k+ stars) has a genuine bitemporal model but no compliance stack.
 
-AgentMem solves this with a **bitemporal model**: every fact carries both *when it happened* (business time) and *when it was ingested* (system time). Superseded facts are excluded at the database layer, not the prompt layer. And every write is recorded in a tamper-evident hash chain that satisfies SEC 17a-4.
+AgentMem is the **compliance-grade layer**: every fact carries both *when it happened* (business time) and *when it was ingested* (system time). Superseded facts are excluded at the database layer. Every write is recorded in a tamper-evident SHA-256 hash chain (SEC 17a-4). Per-subject encryption keys can be destroyed for GDPR erasure while the audit hash survives. Information barriers are enforced at the PostgreSQL RLS layer, not the application layer.
 
 ---
 
 ## The number that matters most
 
-| What | AgentMem | mem0 | Zep |
-|------|----------|------|-----|
-| Stale facts in top-5 (5-revision NVDA chain) | **0 / 4** | 4 / 4 | 4 / 4 |
-| Supersession accuracy (22-pair: synthetic + real-world) | **100%** | N/A | ~partial |
-| Point-in-time recall (4 quarterly queries)    | **4 / 4** | 0 / 4 | 0 / 4 |
+| What | AgentMem | mem0 | Graphiti/Zep† |
+|------|----------|------|--------------|
+| Stale facts in top-5 (5-revision NVDA chain) | **0 / 4** | 4 / 4 | N/T |
+| Supersession accuracy (22-pair: synthetic + real-world) | **100%** | N/A | No benchmark |
+| Point-in-time recall (4 quarterly queries)    | **4 / 4** | 0 / 4 | Partial‡ |
 | SEC 17a-4 audit hash chain                    | ✓ | ✗ | ✗ |
 | GDPR crypto-shred with audit survival         | ✓ | ✗ | ✗ |
-| Information barriers (Chinese walls)          | ✓ | ✗ | ✗ |
+| Information barriers (DB-layer RLS)           | ✓ | ✗ | ✗ |
+
+†Graphiti (Jan 2025) ships a genuine bitemporal graph model and point-in-time queries.
+‡Graph-level temporal queries; relational benchmark (above) not run against their API.
 
 → Full numbers: [BENCHMARK.md](BENCHMARK.md)
 
@@ -50,7 +53,7 @@ The seed script prints a **read-only API key**. Open `demo/index.html` in your b
 
 **Stale-fact suppression** — 5 revisions of NVDA FY2026 guidance ($28B → $40B). Present-time query returns only $40B. The "no supersession" panel shows all 5 revisions flooding the context — exactly what mem0 returns.
 
-**Point-in-time recall** — query "NVDA guidance on 2025-03-01" and get $32B (the revision current on that date), not $40B (the revision current today). Change the date to walk through each revision boundary. mem0 and Zep cannot do this at all.
+**Point-in-time recall** — query "NVDA guidance on 2025-03-01" and get $32B (the revision current on that date), not $40B (the revision current today). Change the date to walk through each revision boundary. mem0 has no bitemporal model. Graphiti/Zep has temporal graph queries but no compliance audit stack — no hash chain, no crypto-shred, no information barriers.
 
 **Audit chain verification** — one API call confirms every event-log row has an unbroken SHA-256 hash chain. Used by SEC/FINRA examiners to verify records haven't been modified.
 
@@ -58,40 +61,65 @@ The seed script prints a **read-only API key**. Open `demo/index.html` in your b
 
 ## Quickstart (Python SDK)
 
-```python
-import httpx, datetime
-
-BASE = "http://localhost:8000"
-KEY  = "agentmem_..."          # from seed_demo.py or provision your own
-
-client = httpx.Client(headers={"X-API-Key": KEY})
-
-# Write a memory
-client.post(f"{BASE}/v1/memories", json={
-    "agent_id":   "analyst-1",
-    "content":    "NVDA FY2026 revenue guidance raised to $40B",
-    "event_time": "2025-11-19T16:00:00Z",
-    "metadata":   {"ticker": "NVDA", "metric": "revenue_guidance"},
-    "importance": 0.9,
-})
-
-# Recall (present-time — superseded facts excluded automatically)
-r = client.post(f"{BASE}/v1/recall", json={
-    "agent_id": "analyst-1",
-    "query":    "NVDA revenue guidance",
-    "k":        5,
-})
-for mem in r.json()["memories"]:
-    print(mem["content"])
-
-# Point-in-time — what did we know on March 1?
-r = client.post(f"{BASE}/v1/recall", json={
-    "agent_id": "analyst-1",
-    "query":    "NVDA revenue guidance",
-    "k":        5,
-    "as_of":    "2025-03-01T00:00:00Z",
-})
+```bash
+pip install agentmem-sdk[local]   # zero-setup local SQLite mode — no Docker needed
 ```
+
+```python
+from agentmem_sdk import LocalAgentMemClient
+from datetime import datetime, timezone
+
+mem = LocalAgentMemClient()
+
+# Store a fact with its real-world event timestamp
+mem.add(
+    agent_id="analyst-1",
+    content="NVDA FY2026 revenue guidance raised to $40B",
+    event_time=datetime(2025, 11, 19, 16, tzinfo=timezone.utc),
+    metadata={"ticker": "NVDA", "metric": "revenue_guidance"},
+    importance=0.9,
+)
+
+# Or extract from a conversation automatically (like mem0.add(messages=[...]))
+mem.add_from_messages(
+    agent_id="analyst-1",
+    messages=[
+        {"role": "user",      "content": "What guidance did NVDA give?"},
+        {"role": "assistant", "content": "NVDA raised FY2026 revenue guidance to $40B."},
+    ],
+    metadata={"ticker": "NVDA"},
+)
+
+# Recall — superseded facts excluded at the DB layer, never reach the LLM
+result = mem.recall(agent_id="analyst-1", query="NVDA revenue guidance")
+for m in result["memories"]:
+    print(m["content"])
+
+# Point-in-time: what did we know on March 1? (no other memory store answers this correctly)
+result = mem.recall_at(
+    agent_id="analyst-1",
+    query="NVDA revenue guidance",
+    as_of=datetime(2025, 3, 1, tzinfo=timezone.utc),
+)
+
+# Switching to the hosted API requires only changing the import:
+# from agentmem_sdk import AgentMemClient as LocalAgentMemClient
+```
+
+---
+
+## Framework integrations
+
+| Framework | Install | Import |
+|-----------|---------|--------|
+| **LangChain** | `pip install agentmem-sdk[langchain]` | `from agentmem_sdk.langchain_integration import AgentMemChatHistory, build_tools` |
+| **LangGraph** | `pip install agentmem-sdk[langgraph]` | `from agentmem_sdk.langgraph_integration import create_recall_node, create_remember_node` |
+| **CrewAI** | `pip install agentmem-sdk[crewai]` | `from agentmem_sdk.crewai_integration import build_crewai_tools` |
+| **OpenAI Agents SDK** | `pip install agentmem-sdk[openai-agents]` | `from agentmem_sdk.openai_agents_integration import build_openai_agent_tools` |
+| **AutoGen v0.4** | `pip install agentmem-sdk[autogen]` | `from agentmem_sdk.autogen_integration import build_autogen_tools` |
+| **TypeScript / Node** | `npm install agentmem-sdk` | `import { AgentMemClient } from "agentmem-sdk"` |
+
+All integrations expose the same three tools: `remember`, `recall`, `recall_at`. The `recall_at` tool is the compliance differentiator — it answers "what did the agent know at T?" with a verifiable hash chain.
 
 ---
 

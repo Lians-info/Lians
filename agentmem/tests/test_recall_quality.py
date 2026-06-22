@@ -7,8 +7,10 @@ Demonstrates AgentMem's advantages over naive retrieval approaches:
    correctly surface current facts over stale ones.
 2. Supersession exclusion: stale facts get a 0.1× validity penalty; pure
    retrieval systems (mem0-style cosine search) return them at full rank.
-3. Temporal filtering: point-in-time recall returns the right revision;
-   systems without bitemporality (Zep, mem0) cannot do this at all.
+3. Temporal filtering: point-in-time recall returns the right revision.
+   mem0 has no bitemporal model. Graphiti/Zep has temporal graph queries but
+   no compliance audit stack; this test exercises the relational validity-gate
+   path that backs the SEC 17a-4 audit reconstruction API.
 
 All tests run with LocalProvider (zero API calls).
 """
@@ -291,10 +293,11 @@ class TestHybridVsPureSemantic:
 
 class TestTemporalFilterPrecision:
     """
-    Point-in-time recall — impossible without bitemporality.
+    Point-in-time recall via relational validity gate.
 
-    mem0 has no event_time concept; Zep is conversation-scoped.
-    Neither can answer 'what was the agent's understanding of X on date D?'
+    mem0 has no event_time concept and cannot do this.  Graphiti/Zep (Jan 2025)
+    has a bitemporal graph model but no compliance audit API backed by a hash chain.
+    This test exercises the SQL-level `valid_from ≤ as_of < valid_to` path.
     AgentMem answers this exactly and in isolation of ingestion order.
     """
 

@@ -2,7 +2,8 @@
 Temporal correctness stress tests.
 
 These scenarios exercise the bitemporal model under conditions that expose
-gaps in systems like mem0 and Zep that lack proper bitemporality:
+gaps in systems like mem0 (no temporal model) or that distinguish AgentMem's
+relational validity-gate from Graphiti/Zep's graph-based temporal model:
 
   1. Long revision chains  — 10 consecutive updates to the same metric
   2. Interleaved tickers   — parallel revision chains don't cross-contaminate
@@ -13,8 +14,9 @@ gaps in systems like mem0 and Zep that lack proper bitemporality:
   7. Cross-quarter tracking — four quarters of the same metric as_of each boundary
 
 Key claim: AgentMem returns the exact state of knowledge at any requested
-point in time.  mem0 has no event_time; Zep's temporal model is conversation-
-scoped (message order), not fact-scoped (real-world event time).
+point in time.  mem0 has no event_time.  Graphiti/Zep has a bitemporal graph
+model (Jan 2025) but its temporal queries operate over graph edges, not the
+relational validity-gate (`valid_from ≤ as_of < valid_to`) tested here.
 """
 from __future__ import annotations
 import pytest

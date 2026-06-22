@@ -322,6 +322,66 @@ class LocalAgentMemClient:
             result = await batch_add_memories(db, self._namespace, items)
         return result.model_dump(mode="json")
 
+    def add_from_messages(
+        self,
+        agent_id: str,
+        messages: list[dict[str, Any]],
+        event_time: Optional[datetime] = None,
+        source: Optional[str] = "conversation",
+        subject_id: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        importance: float = 0.5,
+        roles: Optional[list[str]] = None,
+    ) -> dict:
+        """
+        Extract and store facts from a conversation message list.
+
+        Accepts the standard OpenAI / LangChain messages format:
+        ``[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]``
+
+        Each message whose role matches *roles* (default: ``["assistant"]``) is
+        stored as a separate memory with supersession and audit-chain writes applied.
+
+        Parameters
+        ----------
+        messages:
+            List of ``{"role": str, "content": str}`` dicts.
+        event_time:
+            Timestamp for all extracted memories. Defaults to now().
+        roles:
+            Roles to extract from. Defaults to ``["assistant"]``.
+        source, subject_id, metadata, importance:
+            Same as ``add()``.
+
+        Returns
+        -------
+        MemoryBatchResult dict: ``{"added": N, "memories": [...]}``.
+        """
+        from datetime import timezone as _tz
+        _roles = set(roles) if roles is not None else {"assistant"}
+        _event_time = event_time or datetime.now(_tz.utc)
+        _meta_base = dict(metadata or {})
+
+        batch = []
+        for i, msg in enumerate(messages):
+            role = (msg.get("role") or "").lower()
+            content = (msg.get("content") or "").strip()
+            if role not in _roles or not content:
+                continue
+            batch.append({
+                "agent_id":   agent_id,
+                "content":    content,
+                "event_time": _event_time.isoformat(),
+                "source":     source,
+                "subject_id": subject_id,
+                "metadata":   {**_meta_base, "role": role, "message_index": i},
+                "importance": importance,
+            })
+
+        if not batch:
+            return {"added": 0, "memories": []}
+        return self.batch_add(batch)
+
     # ── Point-in-time convenience ──────────────────────────────────────────────
 
     def recall_at(

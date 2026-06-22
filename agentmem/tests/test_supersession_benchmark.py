@@ -14,11 +14,13 @@ Target: Accuracy >= 0.90, F1(SUPERSEDES) >= 0.90 — the class that matters
 most for preventing stale data from reaching the agent.
 
 Comparison notes:
-  mem0  — no structured supersession; relies on the LLM to avoid hallucination
-           from stale memories.  That's prompt engineering, not memory hygiene.
-  Zep   — extracts facts with an LLM pass and deduplicates by entity handle;
-           lacks temporal ordering and the CONTRADICTS_SAME_TIME distinction.
-  AgentMem — deterministic Stage 1+2 with no LLM call; Stage 3 is additive.
+  mem0         — no structured supersession; relies on the LLM to avoid hallucination
+                 from stale memories.  That's prompt engineering, not memory hygiene.
+  Graphiti/Zep — extracts entity graph edges with an LLM pass and marks them
+                 invalid on contradiction; has no typed relation taxonomy
+                 (SUPERSEDES/CONFIRMS/ADDS/CONTRADICTS_SAME_TIME), no
+                 temporal-ordering invariant test, and no cross-attribute guard rails.
+  AgentMem     — deterministic Stage 1+2 with no LLM call; Stage 3 is additive.
 """
 from __future__ import annotations
 import pytest
@@ -239,7 +241,8 @@ class TestSupersessionAccuracy:
     def test_older_event_time_never_supersedes(self):
         """
         A new memory with an older event_time must NEVER produce SUPERSEDES.
-        This is the temporal-ordering invariant that mem0 and Zep lack.
+        This is the temporal-ordering invariant: mem0 has no supersession engine;
+        Graphiti/Zep uses LLM-driven entity merging with no published invariant test.
         """
         older_cases = [
             (old_c, new_c, old_m, new_m, old_t, new_t)

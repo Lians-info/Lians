@@ -135,8 +135,17 @@ class Settings(BaseSettings):
     # "finance"     — financial entities: ticker/ISIN/CUSIP normalization,
     #                 structured keys: ticker, metric, entity, isin, cusip,
     #                 instrument, field.  Default for financial deployments.
+    # "healthcare"  — clinical entities: ICD-10 normalization, NPI validation,
+    #                 medication name canonicalization.
+    #                 structured keys: patient_id, condition, medication,
+    #                 encounter_id, provider_id, procedure_code.
+    #                 Requires HIPAA BAA before processing real PHI.
+    # "legal"       — legal entities: matter ID / docket normalization,
+    #                 jurisdiction abbreviation, claim type canonicalization.
+    #                 structured keys: matter_id, jurisdiction, claim_type,
+    #                 party_id, privilege_date, document_type.
     # "passthrough" — no normalization, no structured keys; pure semantic
-    #                 supersession only.  Starting point for new verticals.
+    #                 supersession only.  Starting point for custom verticals.
     #
     # Custom adapters can be registered via adapters.register_adapter() before
     # startup and referenced by name here.

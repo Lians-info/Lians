@@ -2,8 +2,10 @@
  * AgentMem TypeScript SDK — async HTTP client for the REST API.
  *
  * AgentMem is a financial-grade AI memory layer that provides:
- *  - Bitemporal recall: query memories as they existed at any past point in time
- *    (SEC 17a-4 / FINRA / CFTC audit-ready; neither mem0 nor Zep support this).
+ *  - Compliance-grade recall: bitemporal model with SEC 17a-4 hash chain, GDPR
+ *    crypto-shred (audit hash survives), and PostgreSQL RLS information barriers.
+ *    mem0 has no temporal model. Graphiti/Zep has temporal graph queries but no
+ *    compliance stack (no hash chain, no crypto-shred, no information barriers).
  *  - Automatic supersession: the LLM engine detects when a new fact replaces an
  *    old one and invalidates the stale record, so recall always returns the
  *    current truth without your agent needing to deduplicate.
@@ -167,7 +169,8 @@ export class AgentMemClient {
   /**
    * Retrieve the most relevant current memories for a query.
    * Superseded facts are excluded at the database level. Pass `as_of` for
-   * point-in-time recall — the compliance differentiator vs. mem0 / Zep.
+   * point-in-time recall backed by a compliance audit stack (hash chain,
+   * crypto-shred, RLS information barriers) absent from mem0 and Graphiti/Zep.
    */
   recall(req: RecallRequest): Promise<RecallResult> {
     return this._req<RecallResult>("POST", "/v1/recall", { json: req });
@@ -342,7 +345,8 @@ export class AgentMemClient {
    * This is the "audit reconstruction as a product surface" from SCALE.md §4:
    * "Show me the agent's complete knowledge state as of T." One call. The
    * compliance demo that closes deals with risk committees and regulators.
-   * Neither mem0 nor Zep support this.
+   * mem0 has no temporal model. Graphiti/Zep has temporal graph queries but
+   * no tamper-evident hash chain or compliance export API.
    *
    * @param opts.agent_id - Agent whose knowledge state to reconstruct
    * @param opts.as_of    - ISO-8601 UTC checkpoint timestamp

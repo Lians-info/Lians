@@ -92,8 +92,18 @@ def get_adapter() -> DomainAdapter:
         adapter = PassthroughAdapter()
         _registry[name] = adapter
         return adapter
+    if name == "healthcare":
+        from .healthcare import HealthcareAdapter
+        adapter = HealthcareAdapter()
+        _registry[name] = adapter
+        return adapter
+    if name == "legal":
+        from .legal import LegalAdapter
+        adapter = LegalAdapter()
+        _registry[name] = adapter
+        return adapter
     raise ValueError(
         f"Unknown DOMAIN_ADAPTER '{name}'. "
-        "Built-in values: 'finance', 'passthrough'. "
+        "Built-in values: 'finance', 'passthrough', 'healthcare', 'legal'. "
         "Register a custom adapter with adapters.register_adapter()."
     )

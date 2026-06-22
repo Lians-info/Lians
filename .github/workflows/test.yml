@@ -48,6 +48,7 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       EMBEDDING_PROVIDER: local
       MASTER_ENCRYPTION_KEY: ""
+      AGENTMEM_ALLOW_UNENCRYPTED: "true"
       ADMIN_SECRET: ci-admin-secret
       RECALL_CACHE_ENABLED: "false"
 

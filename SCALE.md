@@ -18,7 +18,13 @@ The objection that kills this company is **"we'll just build it."** Quants build
 
 A fund's weekend/quarter build will get them:
 - A vector store + recency heuristic. "Good enough" for a demo.
-- It will **not** get them: provable point-in-time correctness across late-arriving and revised data, audit reconstruction that survives a regulator's question, GDPR-style erasure that doesn't break the audit trail, or correct supersession on messy real data.
+- Graphiti (open-source, 20k+ stars) gives them a real bitemporal model and
+  point-in-time queries for free as of 2025.
+- It will **not** get them: audit reconstruction that survives a regulator's
+  question (SEC 17a-4 hash chain), GDPR-style erasure that doesn't break the
+  audit trail (crypto-shred with audit survival), information barriers enforced
+  at the DB layer (PostgreSQL RLS), backtest-contamination detection, or correct
+  supersession on messy real data — benchmarked and proved.
 
 Those four are the things that are *boring to build, dangerous to get wrong, and never the fund's core IP.* That's your wedge. You win build-vs-buy not by being flashier but by owning the unglamorous-but-catastrophic-if-wrong layer they don't want to own.
 
@@ -112,9 +118,18 @@ If regulation around AI agents tightens (it's trending that way), "auditable, er
 
 ## 6. The open-source question, resolved
 
-Do **not** open-source the core — that arms Mem0/Zep with exactly the bitemporal correctness they can't currently retrofit, and it's your moat.
+Do **not** open-source the core. The risk of arming Zep/Graphiti with missing
+capabilities was real at founding — as of June 2026 they have shipped a genuine
+bitemporal model (paper: Jan 2025; 20k+ GitHub stars). The current moat is the
+**compliance stack** — hash chain, crypto-shred, information barriers, backtest
+contamination detection — none of which exist in Graphiti. Open-sourcing those
+primitives would hand Graphiti a production compliance layer they have not built.
 
-**Do** open-source one thin, genuinely useful primitive — a point-in-time-correctness checker or backtest-contamination detector. Purpose: credibility + self-identifying lead-gen. The quant engineer who stars it or files an issue is your next design partner. The engine, audit reconstruction, erasure, and supersession stay closed and paid.
+**Do** open-source one thin, genuinely useful primitive: the backtest-contamination
+detector (`packages/agentmem-backtest-check`). Purpose: credibility + lead-gen.
+The quant engineer who stars it or files an issue is your next design partner.
+The compliance engine, audit reconstruction, erasure, information barriers, and
+supersession stay closed and paid.
 
 ---
 
@@ -122,7 +137,7 @@ Do **not** open-source the core — that arms Mem0/Zep with exactly the bitempor
 
 Be honest about what would make this *not* venture-scale, and decide in advance what evidence would make you pivot.
 
-- **"Feature, not a product."** If supersession + bitemporality turn out narrow enough that an incumbent absorbs them as a checkbox, the standalone company thins. *Kill/pivot signal:* a fund's in-house build reaches "tie" on the scorecard in under a quarter.
+- **"Feature, not a product."** If supersession + bitemporality turn out narrow enough that an incumbent absorbs them as a checkbox, the standalone company thins. *Kill/pivot signal:* a fund's in-house build reaches "tie" on the scorecard in under a quarter. **Note (June 2026):** Graphiti has now shipped a genuine bitemporal model, partially realizing this risk on two dimensions (bitemporal storage, point-in-time recall). The compliance stack (hash chain, crypto-shred, RLS information barriers, backtest contamination) remains exclusive. The pivot signal to watch is whether Graphiti ships a compliance layer — that would be the actual "tie" on the rows that matter.
 - **Build-vs-buy never breaks your way.** *Signal:* design partners validate the pain but still insist on building in-house after seeing your proofs. Means the maintenance-burden argument isn't landing — re-tool the pitch around their senior-engineer opportunity cost.
 - **Niche caps you and Rung 2 stalls.** *Signal:* you win quant funds but asset managers/banks don't treat the quant logos as proof. Means the "hardest customer" narrative isn't transferring — fix positioning before raising on the horizon.
 - **Sales cycle vs. burn.** Secretive, slow, compliance-heavy buyers + small initial contracts is the worst combo for the early growth curve. *Mitigation:* design-partner-first, land-and-expand pricing, and a thin paid tier that shortens time-to-first-dollar.

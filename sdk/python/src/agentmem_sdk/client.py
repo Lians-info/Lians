@@ -242,7 +242,8 @@ class AgentMemClient:
 
         Returns every memory valid at ``as_of`` — exhaustive, no vector search.
         The one-call compliance demo that closes deals with regulators.
-        Neither mem0 nor Zep can answer this question.
+        mem0 has no temporal model. Graphiti/Zep has temporal graph queries but
+        no tamper-evident hash chain, crypto-shred, or compliance export API.
         """
         ts = as_of.isoformat() if isinstance(as_of, datetime) else as_of
         data = await self._req("GET", "/v1/snapshot", params={

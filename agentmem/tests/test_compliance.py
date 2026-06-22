@@ -2,7 +2,9 @@
 Compliance and isolation guarantee tests.
 
 Financial institutions operating under SEC Rule 17a-4, MiFID II, and GDPR
-Art. 17 require the following guarantees that mem0 and Zep do not provide:
+Art. 17 require the following guarantees. mem0 provides none of them. Graphiti/Zep
+has a bitemporal graph model but no compliance stack (no hash chain, no crypto-shred
+with audit survival, no DB-layer information barriers). AgentMem provides all six:
 
   1. Immutable audit trail  — event_log is append-only; erasure does not
                               remove audit hashes.

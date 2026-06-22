@@ -92,6 +92,58 @@ class AgentMemClient:
         """
         return self._loop.run_until_complete(self._async.batch_add(memories))
 
+    def add_from_messages(
+        self,
+        agent_id: str,
+        messages: list[dict[str, Any]],
+        event_time: Optional[datetime] = None,
+        source: Optional[str] = "conversation",
+        subject_id: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        importance: float = 0.5,
+        roles: Optional[list[str]] = None,
+    ) -> dict:
+        """
+        Extract and store facts from a conversation message list.
+
+        Accepts the standard OpenAI / LangChain messages format:
+        ``[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]``
+
+        Each message whose role matches *roles* (default: ``["assistant"]``) is
+        stored as a separate memory with full supersession, bitemporal tracking,
+        and audit-chain writes — the same pipeline as ``add()``.
+
+        This is the equivalent of ``mem0.add(messages=[...])``, with the addition
+        of bitemporal event time and compliance audit writes.
+
+        Parameters
+        ----------
+        messages:
+            List of ``{"role": str, "content": str}`` dicts.
+        event_time:
+            Timestamp to assign to all extracted memories. Defaults to now().
+        roles:
+            Roles to extract from. Defaults to ``["assistant"]``.
+        source, subject_id, metadata, importance:
+            Same as ``add()``.
+
+        Returns
+        -------
+        MemoryBatchResult dict: ``{"added": N, "memories": [...]}``.
+        """
+        return self._loop.run_until_complete(
+            self._async.add_from_messages(
+                agent_id=agent_id,
+                messages=messages,
+                event_time=event_time,
+                source=source,
+                subject_id=subject_id,
+                metadata=metadata,
+                importance=importance,
+                roles=roles,
+            )
+        )
+
     # ── Read ──────────────────────────────────────────────────────────────────
 
     def recall(

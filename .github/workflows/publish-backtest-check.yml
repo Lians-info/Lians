@@ -1,0 +1,67 @@
+name: Publish agentmem-backtest-check to PyPI
+
+# Trigger: push a tag named backtest-check-v<semver>, e.g. backtest-check-v0.1.0
+#
+# Setup required (one-time, on PyPI):
+#   1. Go to https://pypi.org/manage/project/agentmem-backtest-check/settings/publishing/
+#   2. Add a "trusted publisher" for this GitHub repo:
+#      - Owner:      <your-github-org-or-username>
+#      - Repository: AI_Memory_Software_lotus
+#      - Workflow:   publish-backtest-check.yml
+#      - Environment: pypi
+#   No API token or secret needed — OIDC trusted publishing handles auth.
+
+on:
+  push:
+    tags:
+      - "backtest-check-v*"
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build
+        working-directory: packages/agentmem-backtest-check
+
+      - name: Upload dist as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/agentmem-backtest-check/dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/project/agentmem-backtest-check/
+
+    permissions:
+      id-token: write  # required for OIDC trusted publishing
+
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

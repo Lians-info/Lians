@@ -54,7 +54,8 @@ async def knowledge_snapshot(
       were added, superseded, or revised between T₁ and T₂.
 
     This endpoint is the one-call compliance demo that closes deals with risk
-    committees and regulators.  Neither mem0 nor Zep can answer this question.
+    committees and regulators.  mem0 has no temporal model.  Graphiti/Zep has
+    temporal graph queries but no tamper-evident hash chain or compliance export API.
     """
     auth.require("read")
     items = await get_knowledge_snapshot(db, auth.namespace, agent_id, as_of, limit)

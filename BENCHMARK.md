@@ -27,7 +27,12 @@ quarter's guidance replaces this quarter's guidance, the agent must:
 3. Never lose the audit trail of who said what and when (FINRA 4511, SEC 17a-4)
 4. Erase a data subject's history without breaking the audit chain (GDPR Art. 17)
 
-Neither mem0 nor Zep were designed with these constraints. AgentMem was.
+mem0 was not designed with these constraints. Zep's **Graphiti** (released Jan 2025,
+20k+ GitHub stars as of June 2026) now implements a genuine bitemporal model and
+point-in-time queries for its knowledge graph — a meaningful capability advance.
+What Graphiti does not provide is the compliance stack: no SHA-256 hash chain, no
+GDPR crypto-shred with audit survival, no information barriers at the DB layer, and
+no dedicated backtest-contamination detection API. AgentMem was designed for all of it.
 
 ---
 
@@ -93,10 +98,13 @@ to reason about stale data in its context — this is prompt engineering, not me
 hygiene. A stale `$28B` guidance figure passed to an LLM alongside a current `$40B`
 figure creates hallucination risk.
 
-**Zep** extracts entity handles with an LLM pass and deduplicates by handle.
-It lacks the temporal-ordering invariant (older facts can overwrite newer ones
-depending on ingestion order), has no `CONTRADICTS_SAME_TIME` distinction, and
-misses cross-attribute guard rails.
+**Zep/Graphiti** extracts entity handles and edges with an LLM pass and tracks
+temporal validity intervals per edge. Its supersession is still LLM-driven entity
+merging — it has no explicit typed relation (`SUPERSEDES` / `CONFIRMS` / `ADDS` /
+`CONTRADICTS_SAME_TIME`), no temporal-ordering invariant enforcement (older facts can
+overwrite newer ones depending on ingestion order), no `CONTRADICTS_SAME_TIME`
+distinction, and no cross-attribute guard rails. The supersession classification
+benchmark runs on structured rule logic only; Graphiti has no equivalent test.
 
 ---
 
@@ -106,12 +114,16 @@ misses cross-attribute guard rails.
 (Q1: 400k, Q2: 430k, Q3: 460k, Q4: 480k) ingested in order. Query each revision's
 `as_of` window with *"TSLA deliveries"*.
 
-| Query as_of | Expected | AgentMem correct | mem0 correct | Zep correct |
-|-------------|----------|-----------------|--------------|-------------|
-| Q1 + 1 day | 400k | ✓ | ✗ | ✗ |
-| Q2 + 1 day | 430k | ✓ | ✗ | ✗ |
-| Q3 + 1 day | 460k | ✓ | ✗ | ✗ |
-| Present | 480k | ✓ | ✗ | ✗ |
+| Query as_of | Expected | AgentMem correct | mem0 correct | Graphiti/Zep† |
+|-------------|----------|-----------------|--------------|---------------|
+| Q1 + 1 day | 400k | ✓ | ✗ | N/T |
+| Q2 + 1 day | 430k | ✓ | ✗ | N/T |
+| Q3 + 1 day | 460k | ✓ | ✗ | N/T |
+| Present | 480k | ✓ | ✗ | N/T |
+
+†N/T = not tested. Graphiti claims bitemporal graph queries as of Jan 2025; this
+benchmark has not been run against their API. Results may differ due to graph vs.
+relational storage model. See the section below for the architectural distinction.
 
 Point-in-time recall means answering: *"What did the agent know about X on date D?"*
 
@@ -119,9 +131,18 @@ mem0 has no `event_time` concept and no bitemporal model — it always returns t
 most-recently-ingested memory for a query, not the one that was valid at a given
 date. It cannot reconstruct past agent state.
 
-Zep is scoped to conversation sessions. Its graph edges track when entities were
-mentioned in a conversation, not when the underlying financial event occurred.
-A Zep agent cannot answer "what was the Q1 figure after Q2 was ingested?"
+**Zep/Graphiti** (as of Jan 2025 paper and June 2026 releases) now implements a
+genuine bitemporal model: graph edges carry `t_valid` / `t_invalid` intervals
+(event-time axis) and a separate ingestion timestamp. It does support point-in-time
+queries at the graph level — "What did we know about entity X as of date D?"
+
+The distinction from AgentMem on this benchmark is architectural: Graphiti's
+point-in-time model operates over a **knowledge graph** (nodes and edges), not a
+relational vector store. The benchmark above uses a structured relational query
+(`valid_from ≤ as_of < valid_to`) against indexed timestamps. Whether Graphiti's
+graph traversal returns identical results under late-arriving, cross-entity revision
+chains is not published or benchmarked by Zep. The result above marks Graphiti as
+untested (N/T) rather than incorrect (✗).
 
 AgentMem stores two orthogonal timestamps per memory:
 - `event_time` — when the real-world event happened (the business clock)
@@ -229,7 +250,7 @@ EMBEDDING_PROVIDER=local MASTER_ENCRYPTION_KEY="" KMS_PROVIDER=env \
   python agentmem/scripts/run_benchmark.py
 ```
 
-557 tests pass with `EMBEDDING_PROVIDER=local` (no Voyage/OpenAI key required).
+617 tests pass with `EMBEDDING_PROVIDER=local` (no Voyage/OpenAI key required).
 30 tests are skipped without a live PostgreSQL + pgvector instance
 (`TEST_DATABASE_URL` env var).
 
@@ -297,23 +318,43 @@ After the roadmap:
 - **Compliance**: unchanged — mem0 has no audit trail, no crypto-shred, no
   point-in-time recall.
 
-### vs. Zep
+### vs. Zep / Graphiti
 
-Zep (Community and Cloud) builds a knowledge graph from conversations and
-indexes entity relationships.  It does not model bitemporal validity and
-cannot answer "what did the agent know on date D?"
+**What changed (June 2026 spot-check):** Zep's Graphiti library (Jan 2025 paper,
+20k+ GitHub stars) now implements a genuine bitemporal model. Graph edges carry
+`t_valid` / `t_invalid` (event-time) and a separate ingestion timestamp. Graphiti
+explicitly supports point-in-time queries. This is a real capability — not marketing.
+
+**What this closes:** the "only bitemporal agent memory" headline no longer belongs
+exclusively to AgentMem. Any positioning that leans on bitemporal as the primary
+differentiator is now inaccurate.
+
+**What it does not close:**
+
+- **Supersession rule engine**: Graphiti's supersession is LLM-driven entity graph
+  updates. There is no published rule taxonomy (`SUPERSEDES`/`CONFIRMS`/`ADDS`/
+  `CONTRADICTS_SAME_TIME`), no temporal-ordering invariant test, no cross-attribute
+  guard rail. Our deterministic keyed supersession (Change 3) is cheaper per write
+  and formally testable.
+- **Compliance stack**: no SEC 17a-4 hash chain, no tamper-detection, no GDPR
+  crypto-shred (content destroyed, audit hash survives), no information barriers at
+  the DB layer, no dedicated backtest-contamination detection API. These are absent
+  from Graphiti's docs, GitHub, and all published literature as of June 2026.
+- **Architecture**: Graphiti is a knowledge graph (Neo4j-style nodes and edges).
+  AgentMem is a relational vector store. PostgreSQL RLS, `FORCE ROW LEVEL SECURITY`,
+  and per-row hash chaining are natural in a relational model; they are
+  fundamentally harder to bolt onto a graph traversal model.
 
 After the roadmap:
-- **Latency**: Zep's graph extraction path (LLM entity recognition on every
-  write) is orders of magnitude more expensive than AgentMem's deterministic
-  keyed supersession (Change 3).  Both systems end up at similar recall
-  latency for warm-cache reads; AgentMem's write path is significantly cheaper.
-- **Correctness**: Zep's temporal ordering bug (older facts can overwrite
-  newer depending on ingestion order) is not addressed by any Zep release
-  as of this writing.  AgentMem's `event_time`-strict supersession (Change 3)
-  eliminates this class of error by construction.
-- **Compliance**: unchanged — Zep has no SEC 17a-4 hash chain, no GDPR
-  crypto-shred guarantee, no information barriers.
+- **Latency**: Graphiti's write path requires LLM entity extraction on every
+  ingestion. AgentMem's keyed path (Change 3) runs deterministic rules at ~0 ms
+  for structured keys. Both systems reach similar recall latency on warm cache;
+  AgentMem's write path is an order of magnitude cheaper on structured financial data.
+- **Correctness**: temporal-ordering invariant is formally tested in AgentMem
+  (`test_supersession_benchmark.py`). Graphiti has no equivalent published benchmark.
+- **Compliance**: the hash chain, crypto-shred, information barriers, and backtest
+  contamination API remain entirely in AgentMem's column. This is the table stake
+  that separates a developer tool from a compliance-grade memory layer.
 
 ### vs. Letta (MemGPT successor)
 
@@ -330,16 +371,19 @@ or regulatory compliance primitives.
 
 ### Feature matrix
 
-| Dimension | AgentMem | mem0 | Zep | Letta |
-|-----------|----------|------|-----|-------|
-| Stale-fact contamination (5-rev chain) | **0 / 4** | 4 / 4 | 4 / 4 | 4 / 4 |
-| Supersession accuracy (22-pair: 12 synthetic + 10 real-world) | **100% (22/22)** | N/A | ~partial | N/A |
-| Point-in-time recall correctness | **4 / 4** | 0 / 4 | 0 / 4 | 0 / 4 |
+| Dimension | AgentMem | mem0 | Graphiti/Zep† | Letta |
+|-----------|----------|------|--------------|-------|
+| Stale-fact contamination (5-rev chain) | **0 / 4** | 4 / 4 | N/T | 4 / 4 |
+| Supersession accuracy (22-pair: 12 synthetic + 10 real-world) | **100% (22/22)** | N/A | No benchmark | N/A |
+| Point-in-time recall correctness | **4 / 4** | 0 / 4 | Partial‡ | 0 / 4 |
 | Keyed sub-ms recall (post-roadmap) | **✓** | ✗ | ✗ | ✗ |
+
+†Graphiti/Zep columns reflect the Jan 2025 paper and June 2026 release state.
+‡Graphiti supports bitemporal graph queries; relational benchmark (above) not run against their API.
 | Deterministic keyed supersession | **✓** | ✗ | ✗ | ✗ |
 | Financial entity normalization (ISIN/CUSIP/name) | **✓** | ✗ | ✗ | ✗ |
 | Same-time conflict detection (value-aware) | **✓** | ✗ | ✗ | ✗ |
-| Memory lineage graph | **✓** | ✗ | ✗ | ✗ |
+| Memory lineage graph | **✓** | ✗ | ✓ (graph edges) | ✗ |
 | Fact history (time-series by ticker+metric) | **✓** | ✗ | ✗ | ✗ |
 | Backtest-contamination detection | **✓** | ✗ | ✗ | ✗ |
 | Audit reconstruction snapshot (all-facts at T) | **✓** | ✗ | ✗ | ✗ |
@@ -348,7 +392,7 @@ or regulatory compliance primitives.
 | Compliance report (SEC/FINRA/CFTC ready) | **✓** | ✗ | ✗ | ✗ |
 | SEC 17a-4 hash-chain audit | **✓** | ✗ | ✗ | ✗ |
 | Merkle-batch audit (post-roadmap) | **✓** | ✗ | ✗ | ✗ |
-| GDPR crypto-shred with audit survival | **✓** | ✗ | Partial | ✗ |
+| GDPR crypto-shred with audit survival | **✓** | ✗ | ✗ | ✗ |
 | Erasure certificate (cryptographic proof) | **✓** | ✗ | ✗ | ✗ |
 | Information barriers (Chinese walls) | **✓** | ✗ | ✗ | ✗ |
 | Postgres RLS barrier enforcement | **✓** | ✗ | ✗ | ✗ |
@@ -362,7 +406,12 @@ or regulatory compliance primitives.
 
 For financial institutions operating under SEC, FINRA, MiFID II, or CFTC
 oversight, the compliance column is not optional — it is the table stake that
-separates a production-grade memory layer from a research prototype.
+separates a production-grade memory layer from a developer tool.
+
+As of June 2026, Graphiti/Zep has closed the bitemporal and point-in-time gaps that
+existed at launch. The differentiator is no longer "the only temporal agent memory"
+— it is the compliance stack: hash chain, crypto-shred, information barriers, and
+backtest contamination detection. None of those exist in any competitor.
 
 The performance roadmap makes AgentMem competitive on latency *without*
 compromising any of those guarantees.  Immutability, crypto-shredding, and

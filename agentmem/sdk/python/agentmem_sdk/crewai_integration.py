@@ -29,9 +29,10 @@ Three tools are returned:
 - ``recall_facts``    — retrieve current memories by semantic search
 - ``recall_facts_at`` — retrieve memories valid at a specific past date (compliance)
 
-The ``recall_facts_at`` tool is the key differentiator: neither mem0 nor Zep
-support point-in-time recall, so CrewAI agents backed by AgentMem can answer
-"What guidance did we have before the revision?" without hallucination risk.
+The ``recall_facts_at`` tool queries memories as they were at a specific past date.
+mem0 has no bitemporal model. Graphiti/Zep has temporal graph queries but no
+compliance audit stack (hash chain, crypto-shred, information barriers), so
+CrewAI agents backed by AgentMem get both point-in-time accuracy and SEC/FINRA-grade auditability.
 """
 from __future__ import annotations
 
@@ -198,8 +199,8 @@ def build_crewai_tools(client: Any, agent_id: str) -> list:
             "Use for compliance and audit questions: 'What guidance did we have on "
             "2026-03-01?' or 'What was the consensus estimate before the revision?' "
             "Facts ingested after the as_of timestamp are excluded even if they "
-            "supersede earlier values.  This capability is unique to AgentMem — "
-            "neither mem0 nor Zep support point-in-time recall."
+            "supersede earlier values.  mem0 has no bitemporal model.  "
+            "Graphiti/Zep has temporal graph queries but no compliance audit stack."
         )
         args_schema: type[BaseModel] = _RecallAtInput
 

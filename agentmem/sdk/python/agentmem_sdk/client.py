@@ -100,6 +100,98 @@ class AsyncAgentMemClient:
             serialized.append(row)
         return await self._req("POST", "/v1/memories/batch", json={"memories": serialized})
 
+    async def add_from_messages(
+        self,
+        agent_id: str,
+        messages: list[dict[str, Any]],
+        event_time: Optional[datetime] = None,
+        source: Optional[str] = "conversation",
+        subject_id: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        importance: float = 0.5,
+        roles: Optional[list[str]] = None,
+    ) -> dict:
+        """
+        Extract and store facts from a conversation message list.
+
+        Accepts the standard OpenAI / LangChain messages format:
+        ``[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]``
+
+        Each message whose role matches *roles* (default: ``["assistant"]``) is
+        stored as a separate memory with supersession applied automatically. This
+        is the same pattern as ``mem0.add(messages=[...])``, but with bitemporal
+        event time, structured supersession, and an audit-chain write per message.
+
+        Parameters
+        ----------
+        messages:
+            List of ``{"role": str, "content": str}`` dicts. Supports ``role``
+            values: ``"user"``, ``"assistant"``, ``"system"``, ``"tool"``.
+        event_time:
+            Timestamp to assign to all extracted memories. Defaults to now().
+            Use a past timestamp when replaying historical conversation logs.
+        roles:
+            Which roles to extract memories from. Defaults to ``["assistant"]``.
+            Pass ``["user", "assistant"]`` to store both sides of the conversation.
+        source:
+            Source label for all extracted memories. Defaults to ``"conversation"``.
+        subject_id:
+            Data-subject ID (for GDPR crypto-shred targeting — typically the user ID).
+        metadata:
+            Base metadata dict applied to all extracted memories. Role and message
+            index are merged in automatically.
+        importance:
+            Salience score 0.0–1.0 applied to all extracted memories.
+
+        Returns
+        -------
+        MemoryBatchResult dict: ``{"added": N, "memories": [...]}``.
+
+        Example
+        -------
+        ::
+
+            from datetime import datetime, timezone
+            messages = [
+                {"role": "user",      "content": "What did NVDA say about guidance?"},
+                {"role": "assistant", "content": "NVDA raised FY2026 revenue guidance to $40B on Nov 19 2025."},
+                {"role": "user",      "content": "And what's the PE?"},
+                {"role": "assistant", "content": "NVDA trades at ~35x forward earnings as of June 2026."},
+            ]
+            result = await client.add_from_messages(
+                agent_id="equity-desk",
+                messages=messages,
+                event_time=datetime(2026, 6, 22, tzinfo=timezone.utc),
+                metadata={"ticker": "NVDA"},
+            )
+            # result["added"] == 2  (two assistant turns stored)
+        """
+        from datetime import timezone as _tz
+        _roles = set(roles) if roles is not None else {"assistant"}
+        _event_time = event_time or datetime.now(_tz.utc)
+        _meta_base = dict(metadata or {})
+
+        batch = []
+        for i, msg in enumerate(messages):
+            role = (msg.get("role") or "").lower()
+            content = (msg.get("content") or "").strip()
+            if role not in _roles or not content:
+                continue
+            item_meta = {**_meta_base, "role": role, "message_index": i}
+            batch.append({
+                "agent_id":   agent_id,
+                "content":    content,
+                "event_time": _event_time.isoformat(),
+                "source":     source,
+                "subject_id": subject_id,
+                "metadata":   item_meta,
+                "importance": importance,
+            })
+
+        if not batch:
+            return {"added": 0, "memories": []}
+        return await self.batch_add(batch)
+
     # ── Read ──────────────────────────────────────────────────────────────────
 
     async def recall(
@@ -135,8 +227,9 @@ class AsyncAgentMemClient:
         """
         Convenience wrapper: recall memories that were valid at *as_of*.
 
-        This is the compliance differentiator — neither mem0 nor Zep support
-        this.  Use for audit queries: *"What guidance did we have on 2026-03-01?"*
+        Use for audit queries: *"What guidance did we have on 2026-03-01?"*
+        mem0 has no bitemporal model. Graphiti/Zep has temporal graph queries but
+        no compliance audit stack (hash chain, crypto-shred, information barriers).
         """
         return await self.recall(agent_id=agent_id, query=query, k=k, as_of=as_of, filters=filters)
 
@@ -285,7 +378,8 @@ class AsyncAgentMemClient:
         This is the "audit reconstruction as a product surface" from SCALE.md §4:
         *"Show me the agent's complete knowledge state as of T. One call."*
         The compliance demo that closes deals with risk committees and regulators.
-        Neither mem0 nor Zep can answer this question.
+        mem0 has no temporal model.  Graphiti/Zep has temporal graph queries but
+        no tamper-evident hash chain or compliance export API.
 
         Returns a KnowledgeSnapshot dict: ``{agent_id, namespace, as_of, total, items}``.
         """
