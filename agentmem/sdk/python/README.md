@@ -94,3 +94,5 @@ mem = LiansClient(base_url="https://mem.yourfirm.internal", api_key="...")
 ```
 
 Full documentation: [github.com/ebeirne/Lians](https://github.com/ebeirne/Lians)
+
+<!-- mcp-name: io.github.ebeirne/lians -->

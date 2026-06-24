@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.ebeirne/lians",
   "title": "Lians — Financial-Grade Agent Memory",
-  "description": "Bitemporal memory layer for AI agents with zero stale facts, SEC 17a-4 audit chain, GDPR crypto-shred, and information barriers. Built for regulated environments: finance, healthcare, legal. Superseded facts are excluded at the database layer — your LLM never sees stale data.",
-  "version": "0.1.3",
+  "description": "Bitemporal memory for AI agents. SEC 17a-4 audit chain, GDPR crypto-shred, information barriers.",
+  "version": "0.1.4",
   "websiteUrl": "https://github.com/ebeirne/Lians",
   "repository": {
     "url": "https://github.com/ebeirne/Lians",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "lians-sdk",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {
