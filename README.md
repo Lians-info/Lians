@@ -22,8 +22,8 @@
   <a href="https://github.com/ebeirne/Lians">
     <img src="https://img.shields.io/github/commit-activity/m/ebeirne/Lians/master?style=flat-square" alt="GitHub commit activity">
   </a>
-  <a href="https://www.npmjs.com/package/lians">
-    <img src="https://img.shields.io/npm/v/lians?label=npm" alt="npm version">
+  <a href="https://www.npmjs.com/package/@ebeirne/lians">
+    <img src="https://img.shields.io/npm/v/%40ebeirne%2Flians?label=npm" alt="npm version">
   </a>
   <a href="https://registry.modelcontextprotocol.io/servers/io.github.ebeirne/lians">
     <img src="https://img.shields.io/badge/MCP-Official%20Registry-blueviolet" alt="MCP Official Registry">
@@ -166,7 +166,7 @@ Superseded facts are excluded at the database layer. Every write is recorded in 
 | **CrewAI** | `pip install lians-sdk[crewai]` | `from lians.crewai_integration import build_crewai_tools` |
 | **OpenAI Agents SDK** | `pip install lians-sdk[openai-agents]` | `from lians.openai_agents_integration import build_openai_agent_tools` |
 | **AutoGen v0.4** | `pip install lians-sdk[autogen]` | `from lians.autogen_integration import build_autogen_tools` |
-| **TypeScript / Node** | `npm install lians` | `import { LiansClient } from "lians"` |
+| **TypeScript / Node** | `npm install @ebeirne/lians` | `import { LiansClient } from "@ebeirne/lians"` |
 
 ---
 
