@@ -3,7 +3,7 @@
   "name": "io.github.ebeirne/lian",
   "title": "Lian — Financial-Grade Agent Memory",
   "description": "Bitemporal memory layer for AI agents with zero stale facts, SEC 17a-4 audit chain, GDPR crypto-shred, and information barriers. Built for regulated environments: finance, healthcare, legal. Superseded facts are excluded at the database layer — your LLM never sees stale data.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "websiteUrl": "https://github.com/ebeirne/Lian",
   "repository": {
     "url": "https://github.com/ebeirne/Lian",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "lian-sdk",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       },

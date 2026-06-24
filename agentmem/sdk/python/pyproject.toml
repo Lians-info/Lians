@@ -1,10 +1,10 @@
-﻿[build-system]
+[build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "lian-sdk"
-version = "0.1.1"
+version = "0.1.2"
 description = "Financial-grade AI memory — bitemporal facts, SEC 17a-4 audit chain, GDPR crypto-shred"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
