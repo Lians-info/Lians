@@ -25,6 +25,9 @@
   <a href="https://www.npmjs.com/package/lians">
     <img src="https://img.shields.io/npm/v/lians" alt="npm version">
   </a>
+  <a href="https://registry.modelcontextprotocol.io/servers/io.github.ebeirne/lians">
+    <img src="https://img.shields.io/badge/MCP-Official%20Registry-blueviolet" alt="MCP Official Registry">
+  </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0">
   </a>
@@ -45,6 +48,55 @@
 | **Database** | SQLite (zero setup) | Postgres 16 + pgvector | Managed |
 | **Audit chain** | ✓ | ✓ | ✓ |
 | **GDPR erasure** | ✓ | ✓ | ✓ |
+
+---
+
+## 🔌 MCP — Native tool in any AI client
+
+Lians is listed on the [official MCP Registry](https://registry.modelcontextprotocol.io/servers/io.github.ebeirne/lians). Any MCP-compatible host — Claude Desktop, Cursor, VS Code, Windsurf, and others — can connect to your Lians server as a native tool with a one-time config. No SDK code, no custom adapter, no wrapper.
+
+Your agents get eight tools automatically:
+
+| Tool | What it does |
+|------|-------------|
+| `remember` | Store a fact with event time and metadata |
+| `recall` | Retrieve current (non-stale) facts by semantic query |
+| `recall_at` | Point-in-time recall — what did we know on date X? |
+| `reconstruct` | Full audit reconstruction for regulatory submissions |
+| `list_conflicts` | Surface facts where two sources disagree |
+| `memory_lineage` | Full supersession history of any fact |
+| `fact_history` | Time-series view of a ticker+metric (e.g. AAPL EPS) |
+| `backtest_check` | Detect lookahead bias before a backtest runs |
+
+### Claude Desktop / Cursor / Windsurf
+
+Add to your `claude_desktop_config.json` (or equivalent MCP config):
+
+```json
+{
+  "mcpServers": {
+    "lians": {
+      "command": "uvx",
+      "args": ["--from", "lians-sdk[mcp]", "lians-mcp"],
+      "env": {
+        "LIANS_URL": "https://your-lians-server.internal",
+        "LIANS_API_KEY": "lians_...",
+        "LIANS_AGENT_ID": "trading-desk-1"
+      }
+    }
+  }
+}
+```
+
+Restart your client and Lians memory tools appear immediately — no install step for your users beyond setting the three env vars.
+
+### Any other MCP host
+
+```bash
+uvx --from 'lians-sdk[mcp]' lians-mcp
+```
+
+Set `LIANS_URL`, `LIANS_API_KEY`, and optionally `LIANS_AGENT_ID` in the environment.
 
 ---
 
