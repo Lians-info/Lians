@@ -1,15 +1,15 @@
 <p align="center">
-  <a href="https://github.com/ebeirne/Lians">
+  <a href="https://github.com/Lians-ai/Lians">
     <img src="docs/images/banner.png" width="800px" alt="Lians — Financial-Grade Agent Memory">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ebeirne/Lians">Learn more</a>
+  <a href="https://github.com/Lians-ai/Lians">Learn more</a>
   ·
-  <a href="https://github.com/ebeirne/Lians/tree/main/docs">Docs</a>
+  <a href="https://github.com/Lians-ai/Lians/tree/main/docs">Docs</a>
   ·
-  <a href="https://github.com/ebeirne/Lians#self-hosted-quickstart">Quickstart</a>
+  <a href="https://github.com/Lians-ai/Lians#self-hosted-quickstart">Quickstart</a>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
   <a href="https://pypi.org/project/lians-sdk">
     <img src="https://img.shields.io/pypi/dm/lians-sdk?label=pypi%20downloads" alt="PyPI downloads">
   </a>
-  <a href="https://github.com/ebeirne/Lians">
+  <a href="https://github.com/Lians-ai/Lians">
     <img src="https://img.shields.io/github/commit-activity/m/ebeirne/Lians/master?style=flat-square" alt="GitHub commit activity">
   </a>
   <a href="https://www.npmjs.com/package/@ebeirne/lians">
@@ -39,7 +39,7 @@
 
 ---
 
-[Lians](https://github.com/ebeirne/Lians) is a **financial-grade memory layer** for AI agents — built for regulated environments where stale facts contaminate decisions, auditors demand point-in-time reconstruction, and data-subject erasure must be cryptographically provable.
+[Lians](https://github.com/Lians-ai/Lians) is a **financial-grade memory layer** for AI agents — built for regulated environments where stale facts contaminate decisions, auditors demand point-in-time reconstruction, and data-subject erasure must be cryptographically provable.
 
 | | Library | Self-Hosted Server | Cloud |
 |---|---|---|---|
@@ -173,7 +173,7 @@ Superseded facts are excluded at the database layer. Every write is recorded in 
 ## Self-hosted quickstart
 
 ```bash
-git clone https://github.com/ebeirne/Lians.git && cd Lians/agentmem
+git clone https://github.com/Lians-ai/Lians.git && cd Lians/agentmem
 cp .env.demo .env
 docker compose up --build -d
 python scripts/seed_demo.py   # prints a demo API key; open demo/index.html
