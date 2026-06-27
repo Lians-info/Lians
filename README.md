@@ -312,6 +312,8 @@ The Free tier never expires and requires no credit card. Use `pip install lians-
 
 Full pricing and billing documentation: [docs/pricing-tiers.md](docs/pricing-tiers.md) · [docs/billing.md](docs/billing.md)
 
+**Switching from another system?** [Migrate from mem0 →](docs/migrate-from-mem0.md) · [Migrate from Zep CE →](docs/migrate-from-zep.md)
+
 ---
 
 ## License

@@ -1,0 +1,18 @@
+{
+  "name": "lians-plugins",
+  "owner": {
+    "name": "Lians",
+    "email": "support@lians.dev"
+  },
+  "metadata": {
+    "description": "Official Lians plugins for Claude"
+  },
+  "plugins": [
+    {
+      "name": "lians",
+      "source": "./integrations/lians-plugin",
+      "description": "Lians financial-grade memory for AI agents. Persistent, bitemporal memory with SEC 17a-4 audit chain and GDPR crypto-shred.",
+      "version": "0.2.0"
+    }
+  ]
+}
