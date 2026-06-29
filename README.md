@@ -267,16 +267,18 @@ closed cloud. Lians keeps the graph **and** the open compliance spine.
 
 ## Language SDKs
 
-Lians ships native SDKs across four languages — including **Java and C, which no
-other open agent-memory layer offers** (mem0 is Python/TypeScript; Zep adds Go).
-That puts the full compliance memory layer where regulated systems actually run:
-JVM risk platforms, and native/low-latency C in trading, market-data, and on-prem
+Lians ships native SDKs across **five languages** — the widest coverage of any open
+agent-memory layer. mem0 is Python/TypeScript; Zep adds Go. Lians matches all of
+those **and** adds **Java and C**, which neither competitor offers — putting the
+full compliance memory layer where regulated systems actually run: JVM risk
+platforms, and native/low-latency C in trading, market-data, and on-prem
 healthcare/legal stacks.
 
 | Language | Install | Client | Docs |
 |----------|---------|--------|------|
 | **Python** | `pip install lians-sdk` | `from lians import LiansClient` | [sdk/python](agentmem/sdk/python) |
 | **TypeScript / Node** | `npm install @ebeirne/lians` | `import { LiansClient } from "@ebeirne/lians"` | [sdk/typescript](agentmem/sdk/typescript) |
+| **Go** | `go get github.com/Lians-ai/Lians/agentmem/sdk/go` | `lians.NewClient(url, key)` | [sdk/go](agentmem/sdk/go) |
 | **Java** (JVM 11+) | `dev.lians:lians-sdk:0.2.0` (Maven) | `new LiansClient(opts)` | [sdk/java](agentmem/sdk/java) |
 | **C** (C99 + libcurl) | `cmake --build build` | `lians_client_new(...)` | [sdk/c](agentmem/sdk/c) |
 
