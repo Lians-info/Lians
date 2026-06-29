@@ -228,16 +228,40 @@ Lians fixes this with a bitemporal model:
 
 Superseded facts are excluded at the database layer. Every write is recorded in a tamper-evident SHA-256 hash chain (SEC 17a-4). Per-subject keys can be destroyed for GDPR erasure while the audit trail survives. Information barriers are enforced at PostgreSQL RLS, not the application layer.
 
-| | Lians | mem0 | Graphiti/Zep |
-|---|---|---|---|
-| Stale facts in top-5 (5-revision chain) | **0 / 4** | 4 / 4 | N/T |
-| Supersession accuracy (22-pair benchmark) | **100%** | N/A | No benchmark |
-| Point-in-time recall (4 quarterly queries) | **4 / 4** | 0 / 4 | Partial |
-| SEC 17a-4 audit hash chain | ✓ | ✗ | ✗ |
-| GDPR crypto-shred with audit survival | ✓ | ✗ | ✗ |
-| Information barriers (DB-layer RLS) | ✓ | ✗ | ✗ |
+### How Lians compares
 
-→ Full benchmark numbers: [docs/benchmark.md](docs/benchmark.md) · Feature-by-feature breakdown: [vs mem0](docs/compare-mem0.md) · [vs Zep/Graphiti](docs/compare-zep.md)
+The two leading open memory layers each solve part of the problem; Lians is built
+for the regulated case where correctness, access, and auditability are all required
+at once.
+
+| | Lians | mem0 | Zep / Graphiti |
+|---|---|---|---|
+| **Temporal model** | Bitemporal facts **+ edges** (`event_time`, `valid_from/valid_to`) | ADD-only (v3) — versions coexist | Bitemporal graph edges (`valid_at`/`invalid_at`) |
+| **Stale-fact handling** | Excluded at the DB layer (**0/4** stale in top-5) | Accumulated (**4/4** stale) | Edge invalidation (LLM-driven) |
+| **Supersession** | Deterministic, keyed (**100%** on 22-pair benchmark) | None | LLM-extracted |
+| **Point-in-time recall** | `recall_at` + exhaustive `snapshot` (**4/4**) | ✗ | Partial (graph query) |
+| **Relationship graph** | ✓ bitemporal edges, N-hop, COI/related-party `path` | ✗ | ✓ (its core) |
+| **Graph-proximity rerank** | ✓ `recall_near` (node-distance) | ✗ | ✓ |
+| **SEC 17a-4 audit hash chain** | ✓ `verify_chain` | ✗ | ✗ |
+| **GDPR/HIPAA crypto-shred** (audit survives) | ✓ + erasure certificate | ✗ | ✗ |
+| **Information barriers** (DB-layer RLS) | ✓ on facts **and** edges | ✗ (`user_id` filter) | ✗ (cloud-only) |
+| **Conflict review queue** | ✓ detect + human-resolve + webhook | ✗ | ✗ |
+| **Backtest lookahead-bias proof** | ✓ `backtest_check` | ✗ | ✗ |
+| **Datastore** | Postgres + pgvector (one store) | vector DB | graph DB (Neo4j/FalkorDB) |
+| **Determinism** | Reproducible | extraction-dependent | extraction-dependent |
+
+**vs mem0** — mem0's v3 is ADD-only, so revised facts (guidance, rates, doses,
+damages) pile up and contaminate recall; it has no documented encryption-at-rest,
+RBAC, or audit. Lians excludes stale versions deterministically and adds the
+compliance spine. → [docs/compare-mem0.md](docs/compare-mem0.md)
+
+**vs Zep / Graphiti** — Graphiti's knowledge graph is excellent, and Lians now has
+one too (built on Postgres, no graph DB) — but Graphiti by its own docs has *no
+access control, multi-tenancy, audit, or compliance*; Zep only adds those in the
+closed cloud. Lians keeps the graph **and** the open compliance spine.
+→ [docs/compare-zep.md](docs/compare-zep.md)
+
+→ Full benchmark numbers: [docs/benchmark.md](docs/benchmark.md)
 
 ---
 
