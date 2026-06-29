@@ -345,7 +345,7 @@ class TestRLSInformationBarriers:
 
         # Read as group_a â€” must see only id_a
         async with factory() as db:
-            await db.execute(text("SET LOCAL agentmem.barrier_group TO :g"), {"g": group_a})
+            await db.execute(text("SELECT set_config('agentmem.barrier_group', :g, true)"), {"g": group_a})
             rows = (await db.execute(
                 text("SELECT id FROM memories WHERE namespace = :ns"), {"ns": ns}
             )).fetchall()
@@ -383,7 +383,7 @@ class TestRLSInformationBarriers:
             await db.commit()
 
         async with factory() as db:
-            await db.execute(text("SET LOCAL agentmem.barrier_group TO :g"), {"g": group_a})
+            await db.execute(text("SELECT set_config('agentmem.barrier_group', :g, true)"), {"g": group_a})
             rows = (await db.execute(
                 text("SELECT id FROM memories WHERE namespace = :ns"), {"ns": ns}
             )).fetchall()
