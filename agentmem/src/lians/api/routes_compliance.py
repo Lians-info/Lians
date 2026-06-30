@@ -97,6 +97,38 @@ class ComplianceReport(BaseModel):
 
 # ── Route ─────────────────────────────────────────────────────────────────────
 
+@router.get("/compliance/worm")
+async def worm_posture(
+    auth: AuthContext = Depends(get_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Report the deployment's write-once-read-many (WORM) posture for SEC 17a-4
+    examiners. Combines the *logical* WORM guarantee Lians always provides (an
+    append-only, hash-chained audit log) with the *physical* WORM the operator
+    configures (``WORM_MODE`` true ⇒ object-locked storage + a DB role with no
+    UPDATE/DELETE on the audit tables — see docs/worm-storage.md).
+    """
+    from ..config import get_settings
+    auth.require("read")
+    chain = await verify_chain(db, auth.namespace)
+    worm_mode = get_settings().worm_mode
+    return {
+        "namespace": auth.namespace,
+        "worm_mode": worm_mode,
+        "audit_chain_append_only": True,          # Lians never updates/deletes event_log
+        "audit_chain_status": chain.get("status", "unchecked"),
+        "physical_worm_attested": bool(worm_mode),
+        "standard": "SEC 17a-4(f)",
+        "recommendation": (
+            "compliant posture"
+            if worm_mode else
+            "set WORM_MODE=true and back the audit log with object-locked storage "
+            "+ a DB role lacking UPDATE/DELETE on event_log (docs/worm-storage.md)"
+        ),
+    }
+
+
 @router.get("/compliance/report", response_model=ComplianceReport)
 async def compliance_report(
     from_: Optional[str] = Query(None, alias="from", description="ISO-8601 window start (UTC)"),

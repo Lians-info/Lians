@@ -376,6 +376,7 @@ client.erase(subject_id, request_ref)                    # GDPR crypto-shred
 | `AIRGAP_MODE` | `false` | Hard-fails at startup if any config would send data externally |
 | `ADMISSION_MODE` | `monitor` | Admission control: `off` · `monitor` (tag+audit) · `enforce` (reject injection/blocked source, hold PII/PHI/MNPI for review) |
 | `SIEM_URL` | — | Stream every audit event to a SIEM collector (Splunk HEC / Datadog / Elastic) |
+| `WORM_MODE` | `false` | Attest write-once-read-many storage for SEC 17a-4 (object-locked audit, no UPDATE/DELETE on `event_log`) |
 | `STRIPE_API_KEY` | — | Enables per-namespace usage metering |
 
 Full reference: [agentmem/.env.example](agentmem/.env.example)
@@ -447,7 +448,7 @@ Security & procurement docs: [security-whitepaper.md](docs/security-whitepaper.m
 | Information barriers | `barrier_group` column; PostgreSQL RLS |
 | HIPAA §164.312 | Per-subject encryption, audit controls, transmission security |
 
-Full documentation: [compliance.md](docs/compliance.md) · [hipaa.md](docs/hipaa.md) · [security-whitepaper.md](docs/security-whitepaper.md) · [threat-model.md](docs/threat-model.md) · [soc2-hipaa-readiness.md](docs/soc2-hipaa-readiness.md) · [sso.md](docs/sso.md)
+Full documentation: [compliance.md](docs/compliance.md) · [hipaa.md](docs/hipaa.md) · [security-whitepaper.md](docs/security-whitepaper.md) · [threat-model.md](docs/threat-model.md) · [soc2-hipaa-readiness.md](docs/soc2-hipaa-readiness.md) · [sso.md](docs/sso.md) · [worm-storage.md](docs/worm-storage.md)
 
 Access control: namespace-scoped API keys with `read`/`write`/`admin` scopes and RBAC roles (`owner`/`analyst`/`compliance`/`readonly`); SSO via gateway forward-auth (any OIDC/SAML IdP).
 

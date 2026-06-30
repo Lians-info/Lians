@@ -112,6 +112,13 @@ class Settings(BaseSettings):
     # Comma-separated source labels that are never admitted (e.g. "scraped,unverified").
     admission_blocked_sources: str = ""
 
+    # ── WORM / immutable storage posture ──────────────────────────────────────
+    # Set true when the deployment backs the audit log with write-once-read-many
+    # storage (e.g. S3 Object Lock in Compliance mode + app DB role with no
+    # UPDATE/DELETE on event_log). Surfaced via /v1/compliance/worm for examiners.
+    # See docs/worm-storage.md — this asserts intent; physical WORM is a deploy control.
+    worm_mode: bool = False
+
     # ── Performance roadmap (Changes 3 / 7 / 8) ───────────────────────────────
 
     # Change 3: async LLM adjudication worker.  When True, Stage-3 LLM verdicts
