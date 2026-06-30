@@ -109,7 +109,7 @@ if issues:
 ## TypeScript quick reference
 
 ```typescript
-import { LiansClient } from "@ebeirne/lians";
+import { LiansClient } from "@lians-ai/lians";
 
 const mem = new LiansClient({
   baseUrl: process.env.LIANS_URL!,

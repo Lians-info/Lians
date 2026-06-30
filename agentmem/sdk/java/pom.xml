@@ -6,7 +6,7 @@
 
   <groupId>dev.lians</groupId>
   <artifactId>lians-sdk</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <packaging>jar</packaging>
 
   <name>Lians SDK</name>
@@ -19,6 +19,21 @@
       <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
     </license>
   </licenses>
+
+  <developers>
+    <developer>
+      <name>Lians</name>
+      <email>support@lians.dev</email>
+      <organization>Lians</organization>
+      <organizationUrl>https://github.com/Lians-ai</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/Lians-ai/Lians.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/Lians-ai/Lians.git</developerConnection>
+    <url>https://github.com/Lians-ai/Lians</url>
+  </scm>
 
   <properties>
     <maven.compiler.release>11</maven.compiler.release>
@@ -52,4 +67,61 @@
       </plugin>
     </plugins>
   </build>
+
+  <!-- Activated with `-P release` by the maven-central CI job. Builds sources +
+       javadoc, GPG-signs everything, and publishes to Maven Central via the
+       Central Portal. Requires the OSSRH_* / MAVEN_GPG_* secrets. -->
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.7.0</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals><goal>jar</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.4</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.5.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

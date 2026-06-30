@@ -12,37 +12,36 @@ git push origin v0.2.1
 | SDK | Registry | How it's published | Secret(s) needed |
 |-----|----------|--------------------|------------------|
 | **Python** | [PyPI](https://pypi.org/project/lians-sdk) | `publish-lian.yml` builds sdist+wheel and uploads via `twine` | `PYPI_API_TOKEN` |
-| **TypeScript** | [npm](https://www.npmjs.com/package/@ebeirne/lians) | `publish-lian-npm.yml` runs `npm publish` | `NPM_TOKEN` |
-| **Go** | proxy.golang.org / pkg.go.dev | **No build step** — a module tag *is* the release (see below) | none |
-| **Java** | Maven Central / GitHub Packages | `mvn deploy` (or jar attached to the Release) | `OSSRH_USERNAME`, `OSSRH_PASSWORD`, `MAVEN_GPG_KEY`, `MAVEN_GPG_PASSPHRASE` |
+| **TypeScript** | [npm](https://www.npmjs.com/package/@lians-ai/lians) | `publish-lian-npm.yml` runs `npm publish` | `NPM_TOKEN` |
+| **Go** | proxy.golang.org / pkg.go.dev | `release.yml` → `go-tag` auto-mirrors the tag to the module path (see below) | none |
+| **Java** | Maven Central (gated) / GitHub Release jar | `release.yml` → `maven-central` (`mvn deploy -P release`) when opted in; else jar on the Release | `OSSRH_USERNAME`, `OSSRH_PASSWORD`, `MAVEN_GPG_KEY`, `MAVEN_GPG_PASSPHRASE` + var `PUBLISH_MAVEN_CENTRAL=true` |
 | **C** | source tarball on the GitHub Release | packaged by `release.yml` (vendored into the consumer build) | none |
 
-## Go module tags
+## Go module tags (automatic)
 
-Because the Go module lives in a subdirectory, `go get` resolves a version from a
-tag **prefixed with the module path**:
+The Go module lives in a subdirectory, so `go get` resolves a version from a tag
+**prefixed with the module path**. The `go-tag` job in `release.yml` creates this
+automatically when you push a `vX.Y.Z` tag — no manual step:
 
-```bash
-git tag agentmem/sdk/go/v0.2.1
-git push origin agentmem/sdk/go/v0.2.1
+```
+v0.3.0  ──(release.yml go-tag)──▶  agentmem/sdk/go/v0.3.0
 ```
 
-Then consumers use:
+Consumers then use:
 
 ```bash
-go get github.com/Lians-ai/Lians/agentmem/sdk/go@v0.2.1
+go get github.com/Lians-ai/Lians/agentmem/sdk/go@v0.3.0
 ```
-
-The plain `v0.2.1` release tag covers Python/TS/Java/C; the prefixed tag covers Go.
 
 ## Java → Maven Central
 
-`release.yml` attaches the built jar to the GitHub Release out of the box (no
-secrets). To publish to **Maven Central** instead, add the OSSRH + GPG secrets
-above and switch the Java job to `mvn -B deploy -P release` with a
-`distributionManagement` block and the `maven-gpg-plugin` in `pom.xml`. To publish
-to **GitHub Packages** (simpler, no GPG), point `distributionManagement` at
-`https://maven.pkg.github.com/Lians-ai/Lians` and authenticate with `GITHUB_TOKEN`.
+Out of the box, `release.yml` attaches the built jar to the GitHub Release (no
+secrets). To publish to **Maven Central**: add the `OSSRH_*` / `MAVEN_GPG_*`
+secrets, set the repository **variable** `PUBLISH_MAVEN_CENTRAL=true`, and the
+`maven-central` job runs `mvn -B deploy -P release` — the `release` profile in
+`pom.xml` builds sources + javadoc, GPG-signs, and publishes via the Sonatype
+Central Portal. (GitHub Packages is an alternative: point `distributionManagement`
+at `https://maven.pkg.github.com/Lians-ai/Lians` and use `GITHUB_TOKEN`.)
 
 ## C
 
