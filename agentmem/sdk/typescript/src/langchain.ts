@@ -5,7 +5,7 @@
  *   npm install @langchain/core
  *
  * @example
- * import { LiansClient } from "@ebeirne/lians";
+ * import { LiansClient } from "@lians-ai/lians";
  * import { createRecallTool, createRememberTool } from "lians/langchain";
  *
  * const client = new LiansClient({ baseUrl: "...", apiKey: "..." });

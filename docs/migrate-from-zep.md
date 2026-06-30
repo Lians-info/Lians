@@ -39,7 +39,7 @@ pip install lians-sdk[local]     # local SQLite mode — instant start
 pip install lians-sdk            # connects to a Lians server
 
 # TypeScript
-npm install @ebeirne/lians
+npm install @lians-ai/lians
 ```
 
 ## Code comparison
@@ -76,7 +76,7 @@ await client.memory.add("session-123", { messages: [...] });
 
 **Lians (TypeScript):**
 ```typescript
-import { LiansClient } from "@ebeirne/lians";
+import { LiansClient } from "@lians-ai/lians";
 const mem = new LiansClient({ baseUrl: "https://api.lians.dev", apiKey: "lians_..." });
 await mem.add({ agentId: "session-123", content: "...", eventTime: new Date() });
 ```

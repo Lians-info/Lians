@@ -22,8 +22,8 @@
   <a href="https://github.com/Lians-ai/Lians">
     <img src="https://img.shields.io/github/commit-activity/m/Lians-ai/Lians/master?style=flat-square" alt="GitHub commit activity">
   </a>
-  <a href="https://www.npmjs.com/package/@ebeirne/lians">
-    <img src="https://img.shields.io/npm/v/%40ebeirne%2Flians?label=npm" alt="npm version">
+  <a href="https://www.npmjs.com/package/@lians-ai/lians">
+    <img src="https://img.shields.io/npm/v/%40lians-ai%2Flians?label=npm" alt="npm version">
   </a>
   <a href="https://registry.modelcontextprotocol.io/servers/io.github.ebeirne/lians">
     <img src="https://img.shields.io/badge/MCP-Official%20Registry-blueviolet" alt="MCP Official Registry">
@@ -277,7 +277,7 @@ healthcare/legal stacks.
 | Language | Install | Client | Docs |
 |----------|---------|--------|------|
 | **Python** | `pip install lians-sdk` | `from lians import LiansClient` | [sdk/python](agentmem/sdk/python) |
-| **TypeScript / Node** | `npm install @ebeirne/lians` | `import { LiansClient } from "@ebeirne/lians"` | [sdk/typescript](agentmem/sdk/typescript) |
+| **TypeScript / Node** | `npm install @lians-ai/lians` | `import { LiansClient } from "@lians-ai/lians"` | [sdk/typescript](agentmem/sdk/typescript) |
 | **Go** | `go get github.com/Lians-ai/Lians/agentmem/sdk/go` | `lians.NewClient(url, key)` | [sdk/go](agentmem/sdk/go) |
 | **Java** (JVM 11+) | `dev.lians:lians-sdk:0.2.0` (Maven) | `new LiansClient(opts)` | [sdk/java](agentmem/sdk/java) |
 | **C** (C99 + libcurl) | `cmake --build build` | `lians_client_new(...)` | [sdk/c](agentmem/sdk/c) |
@@ -297,7 +297,7 @@ backtest, crypto-shred erasure, audit-chain verify, and the relationship graph
 | **CrewAI** | `pip install lians-sdk[crewai]` | `from lians.crewai_integration import build_crewai_tools` |
 | **OpenAI Agents SDK** | `pip install lians-sdk[openai-agents]` | `from lians.openai_agents_integration import build_openai_agent_tools` |
 | **AutoGen v0.4** | `pip install lians-sdk[autogen]` | `from lians.autogen_integration import build_autogen_tools` |
-| **TypeScript / Node** | `npm install @ebeirne/lians` | `import { LiansClient } from "@ebeirne/lians"` |
+| **TypeScript / Node** | `npm install @lians-ai/lians` | `import { LiansClient } from "@lians-ai/lians"` |
 
 ---
 
