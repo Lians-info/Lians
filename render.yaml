@@ -6,8 +6,8 @@ services:
     region: oregon
     branch: master
     buildCommand: pip install -e ".[otel]"
-    preDeployCommand: export PYTHONPATH=$PWD/agentmem/src && cd agentmem && alembic -c alembic.ini upgrade head
-    startCommand: uvicorn agentmem.main:app --host 0.0.0.0 --port $PORT
+    preDeployCommand: export DATABASE_URL=$(echo "$DATABASE_URL" | sed 's#postgresql://#postgresql+asyncpg://#') && export PYTHONPATH=$PWD/agentmem/src && cd agentmem && alembic -c alembic.ini upgrade head
+    startCommand: export DATABASE_URL=$(echo "$DATABASE_URL" | sed 's#postgresql://#postgresql+asyncpg://#') && uvicorn agentmem.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
