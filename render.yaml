@@ -2,7 +2,7 @@ services:
   - type: web
     name: agentmem-api
     runtime: python
-    plan: basic_256mb
+    plan: starter
     region: oregon
     branch: master
     buildCommand: pip install -e ".[otel]"
@@ -51,7 +51,7 @@ services:
 
 databases:
   - name: agentmem-pg
-    plan: starter
+    plan: basic_256mb
     region: oregon
     databaseName: agentmem
     user: agentmem
