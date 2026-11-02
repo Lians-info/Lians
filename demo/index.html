@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AgentMem Live Demo</title>
+  <title>Lians Live Demo</title>
+  <link rel="icon" href="../docs/images/logo.svg" type="image/svg+xml" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: #fbfaf7;
+      color: #1f2a44;
       min-height: 100vh;
       padding: 2rem 1rem;
     }
@@ -18,27 +19,27 @@
     .container { max-width: 900px; margin: 0 auto; }
 
     header { text-align: center; margin-bottom: 3rem; }
-    header h1 { font-size: 2.2rem; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-    header p  { margin-top: 0.5rem; color: #94a3b8; font-size: 1rem; }
+    header h1 { font-size: 2.2rem; font-weight: 700; color: #1f2a44; letter-spacing: -0.5px; }
+    header p  { margin-top: 0.5rem; color: #4b5672; font-size: 1rem; }
     header .badge {
       display: inline-block; margin-top: 0.75rem;
-      background: #1e293b; border: 1px solid #334155;
+      background: #ffffff; border: 1px solid #e3e6ee;
       border-radius: 9999px; padding: 0.2rem 0.75rem;
-      font-size: 0.75rem; color: #64748b;
+      font-size: 0.75rem; color: #76809a;
     }
 
     /* Config bar */
     .config {
-      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      background: #ffffff; border: 1px solid #e3e6ee; border-radius: 10px;
       padding: 1rem 1.25rem; margin-bottom: 2rem;
       display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
     }
-    .config label { display: block; font-size: 0.72rem; color: #64748b; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .config label { display: block; font-size: 0.72rem; color: #76809a; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
     .config input {
-      background: #0f1117; border: 1px solid #334155; border-radius: 6px;
-      color: #e2e8f0; padding: 0.4rem 0.65rem; font-size: 0.85rem; width: 100%;
+      background: #fbfaf7; border: 1px solid #e3e6ee; border-radius: 6px;
+      color: #1f2a44; padding: 0.4rem 0.65rem; font-size: 0.85rem; width: 100%;
     }
-    .config input:focus { outline: none; border-color: #6366f1; }
+    .config input:focus { outline: none; border-color: #5b6fd0; }
     .config-field { flex: 1; min-width: 180px; }
     .config-field.wide { flex: 2; min-width: 280px; }
 
@@ -46,68 +47,68 @@
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
 
     .card {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      background: #ffffff; border: 1px solid #e3e6ee; border-radius: 12px;
       padding: 1.4rem; display: flex; flex-direction: column; gap: 0.75rem;
     }
-    .card-title { font-weight: 600; font-size: 0.95rem; color: #f1f5f9; }
-    .card-desc  { font-size: 0.82rem; color: #64748b; line-height: 1.5; }
+    .card-title { font-weight: 600; font-size: 0.95rem; color: #1f2a44; }
+    .card-desc  { font-size: 0.82rem; color: #76809a; line-height: 1.5; }
 
     .tag {
       display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem;
       border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;
     }
-    .tag-stale    { background: #7f1d1d; color: #fca5a5; }
-    .tag-time     { background: #1e3a5f; color: #93c5fd; }
-    .tag-audit    { background: #14532d; color: #86efac; }
-    .tag-macro    { background: #3b1f5e; color: #d8b4fe; }
-    .tag-backtest { background: #451a03; color: #fdba74; }
+    .tag-stale    { background: #fbe3ea; color: #a8436a; }
+    .tag-time     { background: #e4e8fb; color: #4152a8; }
+    .tag-audit    { background: #e1f2ec; color: #2f7a66; }
+    .tag-macro    { background: #ece4f6; color: #6a4a98; }
+    .tag-backtest { background: #fbeadb; color: #a8602c; }
 
     .card-extra { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 
     input.date-input {
-      background: #0f1117; border: 1px solid #334155; border-radius: 6px;
-      color: #e2e8f0; padding: 0.35rem 0.6rem; font-size: 0.82rem; flex: 1; min-width: 130px;
+      background: #fbfaf7; border: 1px solid #e3e6ee; border-radius: 6px;
+      color: #1f2a44; padding: 0.35rem 0.6rem; font-size: 0.82rem; flex: 1; min-width: 130px;
     }
-    input.date-input:focus { outline: none; border-color: #6366f1; }
+    input.date-input:focus { outline: none; border-color: #5b6fd0; }
 
     button {
-      background: #6366f1; color: #fff; border: none; border-radius: 7px;
+      background: #5b6fd0; color: #fff; border: none; border-radius: 7px;
       padding: 0.45rem 1rem; font-size: 0.83rem; font-weight: 600;
       cursor: pointer; transition: background 0.15s; white-space: nowrap;
     }
-    button:hover  { background: #4f46e5; }
-    button:active { background: #4338ca; }
-    button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+    button:hover  { background: #4a5dc0; }
+    button:active { background: #3f51ad; }
+    button:disabled { background: #e3e6ee; color: #76809a; cursor: not-allowed; }
 
     /* Result pane */
     .result {
-      background: #0f1117; border: 1px solid #1e293b; border-radius: 8px;
+      background: #fbfaf7; border: 1px solid #ffffff; border-radius: 8px;
       padding: 0.75rem; font-size: 0.78rem; font-family: "Menlo", "Consolas", monospace;
-      color: #94a3b8; min-height: 3.5rem; max-height: 280px; overflow-y: auto;
+      color: #4b5672; min-height: 3.5rem; max-height: 280px; overflow-y: auto;
       white-space: pre-wrap; word-break: break-word; line-height: 1.55;
       display: none;
     }
     .result.visible { display: block; }
-    .result.ok      { border-color: #166534; color: #86efac; }
-    .result.error   { border-color: #7f1d1d; color: #fca5a5; }
+    .result.ok      { border-color: #79bfa9; color: #2f7a66; }
+    .result.error   { border-color: #e693b2; color: #a8436a; }
 
     /* Memory item */
     .mem {
-      border-left: 3px solid #334155; padding-left: 0.6rem; margin-bottom: 0.5rem;
+      border-left: 3px solid #e3e6ee; padding-left: 0.6rem; margin-bottom: 0.5rem;
     }
-    .mem-content { color: #e2e8f0; font-size: 0.8rem; }
-    .mem-meta    { color: #64748b; font-size: 0.72rem; margin-top: 0.2rem; }
-    .mem-stale   { border-left-color: #ef4444; opacity: 0.45; }
-    .mem-current { border-left-color: #22c55e; }
+    .mem-content { color: #1f2a44; font-size: 0.8rem; }
+    .mem-meta    { color: #76809a; font-size: 0.72rem; margin-top: 0.2rem; }
+    .mem-stale   { border-left-color: #e693b2; opacity: 0.45; }
+    .mem-current { border-left-color: #79bfa9; }
 
     /* Footer */
-    footer { text-align: center; margin-top: 3.5rem; color: #334155; font-size: 0.78rem; }
-    footer a { color: #6366f1; text-decoration: none; }
+    footer { text-align: center; margin-top: 3.5rem; color: #e3e6ee; font-size: 0.78rem; }
+    footer a { color: #5b6fd0; text-decoration: none; }
     footer a:hover { text-decoration: underline; }
 
     .section-title {
       font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #475569; margin: 1.5rem 0 0.75rem;
+      letter-spacing: 0.08em; color: #76809a; margin: 1.5rem 0 0.75rem;
     }
   </style>
 </head>
@@ -115,7 +116,7 @@
 <div class="container">
 
   <header>
-    <h1>AgentMem Live Demo</h1>
+    <h1><svg viewBox="0 0 32 32" aria-hidden="true" style="width:44px;height:44px;vertical-align:-6px;margin-right:10px"><path d="M9.5 4.8V12.6" stroke="#8b9ee8" stroke-width="5.4" stroke-linecap="round"/><path d="M9.5 18.2V21.2" stroke="#79bfa9" stroke-width="5.4" stroke-linecap="round"/><path d="M9.5 27H12.4" stroke="#f0ac76" stroke-width="5.4" stroke-linecap="round"/><path d="M18.2 27H25" stroke="#e693b2" stroke-width="5.4" stroke-linecap="round"/></svg><span style="color:#5b6fd0">L</span><span style="color:#3f9883">i</span><span style="color:#d9864a">a</span><span style="color:#c8638a">n</span><span style="color:#7a5aa8">s</span> <span style="color:#1f2a44;font-weight:600">Live Demo</span></h1>
     <p>Financial memory that suppresses stale facts, travels through time, and never loses its audit trail.</p>
     <span class="badge">Bitemporal · AES-256-GCM · SEC 17a-4 hash chain</span>
   </header>
@@ -148,7 +149,7 @@
     </div>
 
     <div class="card">
-      <div class="card-extra"><span class="tag tag-stale" style="background:#14532d;color:#86efac">AgentMem hybrid</span></div>
+      <div class="card-extra"><span class="tag tag-stale" style="background:#e1f2ec;color:#2f7a66">AgentMem hybrid</span></div>
       <div class="card-title">NVDA Guidance — With Supersession</div>
       <div class="card-desc">
         Present-time recall filters <code>valid_to IS NULL</code> before scoring.
@@ -363,8 +364,8 @@
     // Annotate stale items visually
     const el = $("result-raw");
     el.innerHTML = el.textContent
-      .replace(/\[SUPERSEDED[^\]]*\]/g, m => `<span style="color:#f87171">${m}</span>`)
-      .replace(/\[CURRENT\]/g, m => `<span style="color:#4ade80">${m}</span>`);
+      .replace(/\[SUPERSEDED[^\]]*\]/g, m => `<span style="color:#c8638a">${m}</span>`)
+      .replace(/\[CURRENT\]/g, m => `<span style="color:#3f9883">${m}</span>`);
   }
 
   async function queryPresent() {
